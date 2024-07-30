@@ -1,0 +1,342 @@
+﻿@page "/"
+@rendermode InteractiveServer
+@inject IConfiguration Configuration
+@inject IJSRuntime js
+@using Azure.Storage.Blobs
+@using Azure.Storage.Blobs.Specialized
+@using DocumentFormat.OpenXml.Packaging
+@using DocumentFormat.OpenXml.Wordprocessing
+@using MarkdownSharp;
+@using Microsoft.SemanticKernel;
+@using Microsoft.SemanticKernel.ChatCompletion;
+@using Microsoft.SemanticKernel.Connectors.OpenAI;
+@using System.Text
+@using System.Text.RegularExpressions
+@using Microsoft.SemanticKernel.Connectors.Sqlite
+@using Microsoft.SemanticKernel.Embeddings
+@using Microsoft.SemanticKernel.Memory
+@using UglyToad.PdfPig
+
+<PageTitle>Azure Open AI Chat Demo</PageTitle>
+
+<div class="container-fluid d-flex flex-column full-height">
+    <div class="row flex-grow-1 overflow-auto" @ref="chatWindow">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="card-title">Azure OpenAI Chat</h4>
+                </div>
+                <div class="card-body chat-window" >
+                    @((MarkupString)chatHistory)<br /><br />
+                    @((MarkupString)newResponse)
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-12">
+            <div class="input-group">
+                <input type="text" class="form-control" placeholder="Enter your message" @bind-value="message" @bind-value:event="oninput" @onkeydown="HandleKeyDown" />
+                <InputFile @ref="inputFile" class="btn btn-warning" OnChange="HandleFileSelected" disabled="@isFileInputDisabled" />
+                <button class="btn btn-primary" @onclick="SendMessage">Send</button>
+                <button class="btn btn-secondary" @onclick="Clear">Clear</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+
+    #pragma warning disable SKEXP0010, SKEXP0001, SKEXP0020
+
+    private IBrowserFile? selectedFile = null;
+    private string chatHistory = string.Empty;
+    private string newResponse = string.Empty;
+    private string message = string.Empty;
+    private IKernelBuilder? builder = null;
+    private Kernel? kernel = null;
+    private IChatCompletionService? chatCompletionService = null;
+    private ChatHistory history = new ChatHistory();
+    Markdown md = new Markdown();
+
+    bool isFileInputDisabled=false;
+
+    SqliteMemoryStore? memoryStore;
+    SemanticTextMemory? semanticMemory;
+
+    private ElementReference chatWindow;
+    private InputFile? inputFile;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            // Get the model, endpoint and API key from appsettings.json
+            var endpoint = Configuration["AzureOpenAIChatCompletion:Endpoint"] ?? string.Empty;
+            var apiKey = Configuration["AzureOpenAIChatCompletion:ApiKey"] ?? string.Empty;
+            var model = Configuration["AzureOpenAIChatCompletion:Model"] ?? string.Empty;
+            var embedModel = Configuration["AzureOpenAIEmbedding:Model"] ?? string.Empty;
+
+            // Create a kernel with Azure OpenAI chat completion
+
+            builder = Kernel.CreateBuilder()
+            .AddAzureOpenAIChatCompletion(model, endpoint, apiKey)
+            .AddAzureOpenAITextEmbeddingGeneration(embedModel, endpoint, apiKey);
+
+            // Add enterprise components
+            builder.Services.AddLogging(services => services.AddConsole().SetMinimumLevel(LogLevel.Trace));
+
+            // Build the kernel
+            kernel = builder.Build();
+
+            chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
+            memoryStore = await SqliteMemoryStore.ConnectAsync("memory.sqlite");
+            semanticMemory = new SemanticTextMemory(memoryStore, kernel.GetRequiredService<ITextEmbeddingGenerationService>());
+
+            //Clear the chat history and set the system message
+            internalClear();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Initialization error: {ex.Message}");
+        }
+    }
+
+    private async void Clear()
+    {
+        internalClear();
+
+        bool confirmed = await js.InvokeAsync<bool>("confirm", "Click OK to delete previously uploaded documents.");
+
+        //if the user confirms, delete the memory store
+        if (confirmed)
+        {
+            await memoryStore!.DeleteCollectionAsync("demo");
+            await js.InvokeVoidAsync("alert", "All documents have been removed.");
+        }
+
+    }
+
+    private async void internalClear()
+    {
+        //clear the value from inputFile
+
+        if (inputFile != null)
+        {
+            await js.InvokeVoidAsync("clearElementValue", inputFile.Element);
+        }
+
+        chatHistory = "Ask your question using the text box at the bottom.";
+        message = string.Empty;
+        history = new ChatHistory();
+        history.AddAssistantMessage("You are a helpful AI assistant. Do not discuss the memories unless asked.");
+        StateHasChanged();
+    }
+
+    private async Task SendMessage()
+    {
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(message) && chatCompletionService != null)
+            {
+                history.AddUserMessage(message);
+
+                //Clear the message in the textbox so the user knows something is happening.
+                chatHistory += "<br/><b>user</b>: " + message;
+
+
+                //Do we have any memories to augment the chat completion?
+                var results = semanticMemory!.SearchAsync("demo", message, 10);
+
+                if (results!=null)
+                {
+                    history.AddUserMessage("I found some memories that might help you answer the question:");
+                    await foreach (var result in results)
+                    {
+                        history.AddUserMessage(result.Metadata.Text);
+                        Console.WriteLine($"Memory: {result.Metadata.Text}");
+                    }
+                }
+
+                message = string.Empty;
+                StateHasChanged();
+
+                await StreamChatCompletionAsync(history, chatCompletionService);
+                await js.InvokeVoidAsync("scrollToBottom", chatWindow);
+
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"SendMessage error: {ex.Message}");
+        }
+    }
+
+    public async Task StreamChatCompletionAsync(ChatHistory history, IChatCompletionService chatCompletionService)
+    {
+        var markdownBuilder = new StringBuilder();
+        var finalResults = new StringBuilder();
+        await foreach (var chatUpdate in chatCompletionService.GetStreamingChatMessageContentsAsync(history))
+        {
+            if (chatUpdate?.Content != null)
+            {
+                finalResults.Append(chatUpdate.Content);
+                markdownBuilder.Append(chatUpdate.Content);
+                string partialHTML = md.Transform(markdownBuilder.ToString());
+
+                newResponse = "<b>assistant</b>: " + partialHTML.ToString();
+                // Scroll to the bottom of the chat window
+                await js.InvokeVoidAsync("scrollToBottom", chatWindow);
+                StateHasChanged();
+            }
+        }
+        newResponse = string.Empty;
+        chatHistory += "<br/><br/><b>assistant</b>: " + md.Transform(finalResults.ToString());
+        history.AddAssistantMessage(finalResults.ToString());
+        // Scroll to the bottom of the chat window
+        await js.InvokeVoidAsync("scrollToBottom", chatWindow);
+        StateHasChanged();
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await SendMessage();
+        }
+    }
+
+    private async Task HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        selectedFile = e.File;
+
+        if (!string.IsNullOrEmpty(selectedFile.Name) && selectedFile.Size > 0)
+        {
+            await UploadFile();
+
+            selectedFile= null;
+            
+        }
+    }
+
+    private async Task UploadFile()
+    {
+        if (selectedFile == null)
+        {
+            await js.InvokeVoidAsync("alert", "You need to select a file to upload.");
+            return;
+        }
+        isFileInputDisabled = true;
+        StateHasChanged();
+
+        //only upload PDFs, DOCX, and TXT files
+        if (!selectedFile.Name.ToLower().EndsWith(".pdf") && !selectedFile.Name.ToLower().EndsWith(".docx") && !selectedFile.Name.ToLower().EndsWith(".txt"))
+        {
+            await js.InvokeVoidAsync("alert", $"The file {selectedFile.Name} is not a supported file type. Please upload a PDF, DOCX, or TXT file.");
+            return;
+        }
+
+
+        //if the file is a docx, extract the text and save embedding
+        if (selectedFile.Name.ToLower().EndsWith(".docx"))
+        {
+            using (var stream = selectedFile.OpenReadStream(maxAllowedSize: 1073741824)) //1GB
+            {
+                using (MemoryStream memoryStream = new MemoryStream())
+                {
+                    await stream.CopyToAsync(memoryStream);
+                    memoryStream.Position = 0;
+
+                    using (WordprocessingDocument wordDoc = WordprocessingDocument.Open(memoryStream, false))
+                    {
+                        Body? body = wordDoc.MainDocumentPart?.Document.Body;
+                        if (body != null)
+                        {
+                            var paragraphs = body.Elements<Paragraph>();
+
+                            foreach (var paragraph in paragraphs)
+                            {
+                                if (!string.IsNullOrEmpty(paragraph.InnerText))
+                                    await semanticMemory!.SaveInformationAsync("demo", paragraph.InnerText, Guid.NewGuid().ToString());
+                            }
+                        }
+                    }
+                }
+            }
+            await js.InvokeVoidAsync("alert", "Document upload and processing completed.");
+        }
+
+        //if the file is a pdf, extract the text and save embedding
+        if (selectedFile.Name.ToLower().EndsWith(".pdf"))
+        {
+            using var memoryStream = new MemoryStream();
+            await selectedFile.OpenReadStream(maxAllowedSize: 1073741824).CopyToAsync(memoryStream);//1GB
+            memoryStream.Position = 0;
+            using var pdfDocument = PdfDocument.Open(memoryStream);
+
+            //extract text from each paragraph
+            List<string> paragraphList = new List<string>();
+            foreach (var page in pdfDocument.GetPages())
+            {
+                string pageText = page.Text;
+                var paragraphs = SplitIntoParagraphs(pageText);
+                foreach (var paragraph in paragraphs)
+                {
+                    paragraphList.Add(paragraph);
+                }
+            }
+
+            //Create embeddings for each paragraph and save to sqlite semantic kernel memory
+            foreach (var paragraph in paragraphList)
+            {
+                if (!string.IsNullOrEmpty(paragraph))
+                    await semanticMemory!.SaveInformationAsync("demo", paragraph, Guid.NewGuid().ToString());
+            }
+
+            await js.InvokeVoidAsync("alert", "Document upload and processing completed.");
+        }
+
+        //if the file is a txt, save the embedding
+        if (selectedFile.Name.ToLower().EndsWith(".txt"))
+        {
+            //read the text from selectedFile, chunk it into paragraphs, and save each paragraph to the semantic memory
+            using (var stream = selectedFile.OpenReadStream(maxAllowedSize:1073741824)) //1GB
+            {
+                using (StreamReader reader = new StreamReader(stream))
+                {
+                    string text = reader.ReadToEnd();
+                    var paragraphs = SplitIntoParagraphs(text);
+                    foreach (var paragraph in paragraphs)
+                    {
+                        if (!string.IsNullOrEmpty(paragraph))
+                            await semanticMemory!.SaveInformationAsync("demo", paragraph, Guid.NewGuid().ToString());
+                    }
+                }
+            }
+
+            await js.InvokeVoidAsync("alert", "Document upload and processing completed.");
+        }
+
+        if (inputFile != null)
+        {
+            await js.InvokeVoidAsync("clearElementValue", inputFile.Element);
+        }
+        isFileInputDisabled = false;
+        StateHasChanged();
+    }
+
+    private List<string> SplitIntoParagraphs(string text)
+    {
+        var paragraphs = new List<string>();
+        var matches = Regex.Split(text, @"\r\n\r\n|\n\n|\r\r");
+        foreach (var match in matches)
+        {
+            if (!string.IsNullOrWhiteSpace(match))
+            {
+                paragraphs.Add(match.Trim());
+            }
+        }
+        return paragraphs;
+    }
+
+}
