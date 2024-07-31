@@ -33,7 +33,7 @@ For more accurate document ingestion, processing, and semantic search it is reco
 * Azure AI Search
 * Azure Document Intelligence
 
-Note: If deployed on an Azure App Service with EasyAuth enabled, the uploaded documents become knowledge for only the user who uploaded the document. It does not share the knowledge with other users of the solution.  If you are not using EasyAuth, you are running local, or deployed the app on another .NET web host, all of the users will all be considered guests and all of the knowledge uploaded will be shared.
+Note: If deployed on an Azure App Service with EasyAuth enabled, the uploaded documents become knowledge for only the user who uploaded the document. It does not share the knowledge with other users of the solution.  If you are not using EasyAuth, you are running local, or deployed the app on another .NET web host, all of the users will be considered guests and all of the knowledge uploaded will be shared.
 
 ## Requirements
 * Azure Subscription with at least 1 Azure OpenAI chat model and 1 Azure OpenAI embedding model deployed.
