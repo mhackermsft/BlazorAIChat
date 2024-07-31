@@ -1,7 +1,7 @@
 # Blazor Azure OpenAI Chat Demo
 
 ## Overview
-This is a sample .NET 8 Blazor Interactive Server application for chatting with Azure OpenAI Models. Users may upload TXT, DOCX or PDF documents as a knowledge base for the AI to use when responding.
+This is a sample .NET 8 Blazor Interactive Server application for chatting with Azure OpenAI Models. Users may upload TXT, DOCX or PDF documents to a knowledge base for the AI to use when responding. If configured, it can also upload images for those AI models that support images in chat.
 
 ## Components
 This solution utilizes several open source libraries to help with document ingestion and chat display. These projects include:
@@ -15,6 +15,7 @@ This solution utilizes several open source libraries to help with document inges
 * Can be run locally or hosted on Azure App Service
 * If run in Azure, it can use EasyAuth authentication.
 * User can upload TXT, DOCX or PDF documents into the knowledge base. If running on Azure App Service with EasyAuth, the knowledge uploaded is associated only to the user who uploaded the content.
+* If the model supports, the user can upload an image and ask questions about it. (works well with gpt-4o)
 * Streaming chat results with the ability to stop the response.
 * Ability to clear chat and/or delete the data stored in the user's knowledge base.
 
