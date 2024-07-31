@@ -5,10 +5,10 @@
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">Document Processing</h5>
+                    <h5 class="modal-title">@Title</h5>
                 </div>
                 <div class="modal-body">
-                    <p>Please wait, the document is uploading and processing. The amount of time this takes depends upon the size of the document.</p>
+                    <p>@Message</p>
                 </div>
             </div>
         </div>
@@ -17,4 +17,6 @@
 
 @code {
     [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public string Title { get; set; }
+    [Parameter] public string Message { get; set; }
 }

@@ -20,6 +20,7 @@
 @using Microsoft.SemanticKernel.Memory
 @using System.Text.Json
 @using System.Net.Http.Headers
+@using System.Security.Claims
 @using UglyToad.PdfPig
 
 <PageTitle>Azure Open AI Chat Demo</PageTitle>
@@ -66,7 +67,8 @@
     </div>
 }
 
-<LoadingModal IsVisible="isFileInputDisabled" />
+<CustomModal IsVisible="isFileInputDisabled" Title="Document Processing" Message="Please wait, the document is uploading and processing. The amount of time this takes depends upon the size of the document." />
+
 
 @code {
 
@@ -92,25 +94,33 @@
     private ElementReference chatWindow;
     private InputFile? inputFile;
 
+    bool RequireEasyAuth = false;
+    string userName = string.Empty;
+
     private string alertMessage { get; set; } = string.Empty;
     private string alertType { get; set; } = string.Empty;
-    string userName = string.Empty;
+
     string clearCancelText = "Clear";
 
     const long maxFileSizeBytes = 1073741824; // 1GB
     const string defaultUserName = "Guest";
-    const string welcomeMessage = "Welcome to the Azure OpenAI Chat demo! You can ask your questions using the text box below. Additionally, you can upload DOCX, PDF, or TXT files (up to 1GB) to ask questions about their content.";
+    string welcomeMessage = string.Empty;
+
+    bool chatModelSupportsImages = false;
+    byte[]? uploadImageByteArray = null;
+    string uploadImageType= string.Empty;
 
     protected override async Task OnInitializedAsync()
     {
+        ClaimsPrincipal? user = null;
         try
         {
             var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
-            var user = authState.User;
+            user = authState.User;
 
             if (user.Identity?.IsAuthenticated == true)
             {
-                userName = user.Identity.Name ?? defaultUserName;
+                userName = user.Identity.Name ?? user.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? defaultUserName;
             }
             else
             {
@@ -130,6 +140,16 @@
             var apiKey = Configuration["AzureOpenAIChatCompletion:ApiKey"] ?? string.Empty;
             var model = Configuration["AzureOpenAIChatCompletion:Model"] ?? string.Empty;
             var embedModel = Configuration["AzureOpenAIEmbedding:Model"] ?? string.Empty;
+            chatModelSupportsImages = bool.Parse(Configuration["AzureOpenAIChatCompletion:SupportsImages"] ?? "false");
+            RequireEasyAuth = bool.Parse(Configuration["RequireEasyAuth"] ?? "false");
+
+            //If the user is not authenticated and guests are not allowed, then redirect to the login page
+            if ((user?.Identity?.IsAuthenticated == false || userName == defaultUserName) && RequireEasyAuth)
+            {
+                NavigationManager.NavigateTo("/.auth/logout");
+            }
+
+            welcomeMessage = $"Welcome to the Azure OpenAI Chat demo! You can ask your questions using the text box below. Additionally, you can upload DOCX, PDF, {(chatModelSupportsImages?"Images, ":string.Empty)} or TXT files (up to 1GB) to ask questions about their content.";
 
             // Create a kernel with Azure OpenAI chat completion
 
@@ -189,6 +209,8 @@
     private void internalClear()
     {
         chatHistory = welcomeMessage;
+        uploadImageByteArray = null;
+        uploadImageType = string.Empty;
         message = string.Empty;
         history = new ChatHistory();
         history.AddAssistantMessage("You are a helpful AI assistant. Do not discuss the memories unless asked.");
@@ -206,11 +228,22 @@
                 stopResponding = false;
 
                 //Save the user message to the memory store
-                history.AddUserMessage(message);
+                if (uploadImageByteArray==null)
+                {
+                    history.AddUserMessage(message);
+                    
+                }
+                else
+                {
+                    var sendMessage = new ChatMessageContentItemCollection
+                    {
+                        new TextContent(message),
+                        new ImageContent(){Data=uploadImageByteArray, MimeType = uploadImageType }
+                    };
+                    history.AddUserMessage(sendMessage);
+                }
 
-                //Clear the message in the textbox so the user knows something is happening.
                 chatHistory += "<br/><b>user</b>: " + message;
-
 
                 //Do we have any memories to augment the chat completion?
                 var results = semanticMemory!.SearchAsync(userName, message, 10);
@@ -329,11 +362,16 @@
 
             // Only upload PDFs, DOCX, and TXT files
             var fileName = selectedFile.Name.ToLower();
-            if (!(fileName.EndsWith(".pdf") || fileName.EndsWith(".docx") || fileName.EndsWith(".txt")))
+            if (!(fileName.EndsWith(".pdf") || fileName.EndsWith(".docx") || fileName.EndsWith(".txt") ||
+                  (chatModelSupportsImages && (fileName.EndsWith(".jpg") || fileName.EndsWith(".jpeg") || fileName.EndsWith(".png") || fileName.EndsWith(".gif")))))
             {
-                ShowAlert($"The file {selectedFile.Name} is not a supported file type. Please upload a PDF, DOCX, or TXT file.", AlertTypeEnum.warning);
+                string alertMessage = chatModelSupportsImages
+                    ? "Please upload a PDF, DOCX, TXT, or image file."
+                    : "Please upload a PDF, DOCX, or TXT file. Image uploads are not supported.";
+                ShowAlert($"The file {selectedFile.Name} is not a supported file type. {alertMessage}", AlertTypeEnum.warning);
                 return;
             }
+
 
             isFileInputDisabled = true;
             StateHasChanged();
@@ -355,6 +393,18 @@
             {
                 await ProcessTxtFile(memoryStream);
             }
+            else if (fileName.EndsWith(".jpg") || fileName.EndsWith(".jpeg") || fileName.EndsWith(".png") || fileName.EndsWith(".gif"))
+            {
+                ProcessImage(memoryStream, fileName);
+            }
+            else
+            {
+                string alertMessage = chatModelSupportsImages
+                    ? "Please upload a PDF, DOCX, TXT, or image file."
+                    : "Please upload a PDF, DOCX, or TXT file. Image uploads are not supported.";
+                ShowAlert($"The file {selectedFile.Name} is not a supported file type. {alertMessage}", AlertTypeEnum.warning);
+                return;
+            }
 
             if (inputFile != null)
             {
@@ -368,6 +418,41 @@
             ShowAlert($"An error occurred while uploading the file. {ex.Message}", AlertTypeEnum.danger);
             isFileInputDisabled = false;
             Console.WriteLine($"UploadFile error: {ex.Message}");
+        }
+    }
+
+    private void ProcessImage(MemoryStream memoryStream, string filename)
+    {
+        try
+        {
+
+            //set the mime type of the image to the uploadImageType string based on the filename
+            if (filename.EndsWith(".jpg") || filename.EndsWith(".jpeg"))
+            {
+                uploadImageType = "image/jpeg";
+            }
+            else if (filename.EndsWith(".png"))
+            {
+                uploadImageType = "image/png";
+            }
+            else if (filename.EndsWith(".gif"))
+            {
+                uploadImageType = "image/gif";
+            }
+
+            uploadImageByteArray = memoryStream.ToArray();
+
+            string base64Image = ConvertByteImageToBase64Data(uploadImageByteArray);
+            chatHistory += $"<br/><b>user</b>: <img style='max-height:300px; max-width:300px;' src='{base64Image}'/><br/>";
+            StateHasChanged();
+            return;
+
+        }
+        catch (Exception ex)
+        {
+            ShowAlert($"An error occurred while processing the image. {ex.Message}", AlertTypeEnum.danger);
+            Console.WriteLine($"ProcessImage error: {ex.Message}");
+            return;
         }
     }
 
@@ -483,6 +568,11 @@
         alertMessage = string.Empty;
         alertType=string.Empty;
         StateHasChanged();
+    }
+
+    private string ConvertByteImageToBase64Data(byte[] byteImage)
+    {
+        return "data:image/png;base64," + Convert.ToBase64String(byteImage);
     }
 
 }

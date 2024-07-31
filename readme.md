@@ -46,15 +46,18 @@ The appsettings.json file has a few configuration parameters that must be set fo
   "AzureOpenAIChatCompletion": {
     "Endpoint": "",
     "ApiKey": "",
-    "Model": ""
+    "Model": "",
+    "SupportsImages": false
   },
   "AzureOpenAIEmbedding": {
     "Model": ""
-  }
+  },
+  "RequireEasyAuth": false
   ```
 
-* Under the AzureOpenAIChatCompletion section include your Azure OpenAI endpoint URL, API Key, and the name of the deployed chat model you want to use.
+* Under the AzureOpenAIChatCompletion section include your Azure OpenAI endpoint URL, API Key, and the name of the deployed chat model you want to use. If the model supports images, set SupportsImages to true.
 * Under the AzureOpenAIEmbedding section include the deployed embedding model you want to use. It is assumed that both the chat and embedding models are accessed through the same Azure OpenAI endpoint and API key.
+* If you are using EasyAuth with Azure App Service, it is recommended to set RequireEasyAuth to true to validate a person is fully logged in and not being seen as a guest.
 
 This solution has been tested with the gpt-4o chat model and the text-embedding-ada-002 model. You should be able to plug in other models to test them out.
 
