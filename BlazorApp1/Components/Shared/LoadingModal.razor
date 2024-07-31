@@ -1,0 +1,20 @@
+﻿@if (IsVisible)
+{
+    <div class="modal-backdrop fade show"></div>
+    <div class="modal show d-block" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Document Processing</h5>
+                </div>
+                <div class="modal-body">
+                    <p>Please wait, the document is uploading and processing. The amount of time this takes depends upon the size of the document.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+}

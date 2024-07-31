@@ -2,6 +2,10 @@
 @rendermode InteractiveServer
 @inject IConfiguration Configuration
 @inject IJSRuntime js
+@inject NavigationManager NavigationManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@using BlazorAIChat.Components.Shared
+@using Microsoft.AspNetCore.Components.Authorization
 @using Azure.Storage.Blobs
 @using Azure.Storage.Blobs.Specialized
 @using DocumentFormat.OpenXml.Packaging
@@ -15,6 +19,8 @@
 @using Microsoft.SemanticKernel.Connectors.Sqlite
 @using Microsoft.SemanticKernel.Embeddings
 @using Microsoft.SemanticKernel.Memory
+@using System.Text.Json
+@using System.Net.Http.Headers
 @using UglyToad.PdfPig
 
 <PageTitle>Azure Open AI Chat Demo</PageTitle>
@@ -25,6 +31,12 @@
             <div class="card">
                 <div class="card-header">
                     <h4 class="card-title">Azure OpenAI Chat</h4>
+                    <span class="badge bg-success ms-auto me-2 align-self-center">@userName</span>
+                    @if (userName != defaultUserName)
+                    { 
+                        <button class="btn btn-danger ms-2 align-self-center py-1 logout-button" onclick="document.location='/.auth/logout'">Logout</button>
+                    }
+
                 </div>
                 <div class="card-body chat-window" >
                     @((MarkupString)chatHistory)<br /><br />
@@ -36,22 +48,26 @@
     <div class="row">
         <div class="col-md-12">
             <div class="input-group">
-                <input type="text" class="form-control" placeholder="Enter your message" @bind-value="message" @bind-value:event="oninput" @onkeydown="HandleKeyDown" />
-                <InputFile @ref="inputFile" class="btn btn-warning" OnChange="HandleFileSelected" disabled="@isFileInputDisabled" />
+                <input type="text" class="form-control" placeholder="Enter your message" disabled="@isResponding" @bind-value="message" @bind-value:event="oninput" @onkeydown="HandleKeyDown" />
                 <button class="btn btn-primary" @onclick="SendMessage">Send</button>
-                <button class="btn btn-secondary" @onclick="Clear">Clear</button>
+                <InputFile @ref="inputFile" class="btn btn-warning" OnChange="HandleFileSelected" disabled="@(isFileInputDisabled||isResponding)" />
+                <button class="btn btn-secondary" @onclick="Clear">@clearCancelText</button>
             </div>
         </div>
     </div>
 </div>
 
-@if (showAlert)
+@if (!string.IsNullOrEmpty(alertType))
 {
-    <div class="alert @alertType alert-dismissible alert-top-full-width" role="alert">
-        @alertMessage
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close" @onclick="CloseAlert"></button>
+    <div>
+        <div class="alert @alertType alert-dismissible alert-top-full-width" role="alert">
+                @alertMessage
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close" @onclick="CloseAlert"></button>
+        </div>
     </div>
 }
+
+<LoadingModal IsVisible="isFileInputDisabled" />
 
 @code {
 
@@ -68,6 +84,8 @@
     Markdown md = new Markdown();
 
     bool isFileInputDisabled=false;
+    bool isResponding = false;
+    bool stopResponding = false;
 
     SqliteMemoryStore? memoryStore;
     SemanticTextMemory? semanticMemory;
@@ -75,12 +93,36 @@
     private ElementReference chatWindow;
     private InputFile? inputFile;
 
-    private bool showAlert { get; set; } = false;
     private string alertMessage { get; set; } = string.Empty;
     private string alertType { get; set; } = string.Empty;
+    string userName = string.Empty;
+    string clearCancelText = "Clear";
+
+    const long maxFileSizeBytes = 1073741824; // 1GB
+    const string defaultUserName = "Guest";
+    const string welcomeMessage = "Welcome to the Azure OpenAI Chat demo! You can ask your questions using the text box below. Additionally, you can upload DOCX, PDF, or TXT files (up to 1GB) to ask questions about their content.";
 
     protected override async Task OnInitializedAsync()
     {
+        try
+        {
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+
+            if (user.Identity.IsAuthenticated)
+            {
+                userName = user.Identity.Name;
+            }
+            else
+            {
+                userName = defaultUserName;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Initialization error: {ex.Message}");
+        }
+
         try
         {
             // Get the model, endpoint and API key from appsettings.json
@@ -117,29 +159,36 @@
 
     private async void Clear()
     {
-        internalClear();
-
-        bool confirmed = await js.InvokeAsync<bool>("confirm", "Click OK to delete previously uploaded documents.");
-
-        //if the user confirms, delete the memory store
-        if (confirmed)
+        if (isResponding)
         {
-            await memoryStore!.DeleteCollectionAsync("demo");
-            ShowAlert("All documents have been removed.", AlertTypeEnum.info);
+            stopResponding = true;
+            clearCancelText = "Clear";
+        }
+        else
+        {
+            internalClear();
+
+            //clear the value from inputFile
+            if (inputFile != null)
+            {
+                await js.InvokeVoidAsync("clearElementValue", inputFile.Element);
+            }
+
+            bool confirmed = await js.InvokeAsync<bool>("confirm", "Click OK to delete previously uploaded documents. Click cancel to only clear chat to start a new conversation.");
+
+            //if the user confirms, delete the memory store
+            if (confirmed)
+            {
+                await memoryStore!.DeleteCollectionAsync(userName);
+                ShowAlert("All documents have been removed.", AlertTypeEnum.info);
+            }
         }
 
     }
 
     private async void internalClear()
     {
-        //clear the value from inputFile
-
-        if (inputFile != null)
-        {
-            await js.InvokeVoidAsync("clearElementValue", inputFile.Element);
-        }
-
-        chatHistory = "Ask your question using the text box at the bottom.";
+        chatHistory = welcomeMessage;
         message = string.Empty;
         history = new ChatHistory();
         history.AddAssistantMessage("You are a helpful AI assistant. Do not discuss the memories unless asked.");
@@ -152,6 +201,11 @@
         {
             if (!string.IsNullOrWhiteSpace(message) && chatCompletionService != null)
             {
+
+                //The user previously requested to stop responding, so reset the flag so it can respond to the new message
+                stopResponding = false;
+
+                //Save the user message to the memory store
                 history.AddUserMessage(message);
 
                 //Clear the message in the textbox so the user knows something is happening.
@@ -159,7 +213,7 @@
 
 
                 //Do we have any memories to augment the chat completion?
-                var results = semanticMemory!.SearchAsync("demo", message, 10);
+                var results = semanticMemory!.SearchAsync(userName, message, 10);
 
                 if (results!=null)
                 {
@@ -187,28 +241,50 @@
 
     public async Task StreamChatCompletionAsync(ChatHistory history, IChatCompletionService chatCompletionService)
     {
-        var markdownBuilder = new StringBuilder();
-        var finalResults = new StringBuilder();
-        await foreach (var chatUpdate in chatCompletionService.GetStreamingChatMessageContentsAsync(history))
+        try
         {
-            if (chatUpdate?.Content != null)
+            var markdownBuilder = new StringBuilder();
+            var finalResults = new StringBuilder();
+            isResponding = true;
+            clearCancelText = "Stop";
+            await foreach (var chatUpdate in chatCompletionService.GetStreamingChatMessageContentsAsync(history))
             {
-                finalResults.Append(chatUpdate.Content);
-                markdownBuilder.Append(chatUpdate.Content);
-                string partialHTML = md.Transform(markdownBuilder.ToString());
+                //If the user has requested to stop responding, then break out of the loop
+                if (stopResponding)
+                {
+                    clearCancelText = "Clear";
+                    break;
+                }
 
-                newResponse = "<b>assistant</b>: " + partialHTML.ToString();
-                // Scroll to the bottom of the chat window
-                await js.InvokeVoidAsync("scrollToBottom", chatWindow);
-                StateHasChanged();
+                //If the chat update has content, then append it to the results
+                if (chatUpdate?.Content != null)
+                {
+                    finalResults.Append(chatUpdate.Content);
+                    markdownBuilder.Append(chatUpdate.Content);
+                    string partialHTML = md.Transform(markdownBuilder.ToString());
+
+                    newResponse = "<b>assistant</b>: " + partialHTML.ToString();
+                    // Scroll to the bottom of the chat window
+                    await js.InvokeVoidAsync("scrollToBottom", chatWindow);
+                    StateHasChanged();
+                }
             }
+            newResponse = string.Empty;
+            chatHistory += "<br/><br/><b>assistant</b>: " + md.Transform(finalResults.ToString());
+            history.AddAssistantMessage(finalResults.ToString());
+            // Scroll to the bottom of the chat window
+            await js.InvokeVoidAsync("scrollToBottom", chatWindow);
+            isResponding = false;
+            clearCancelText = "Clear";
+            StateHasChanged();
         }
-        newResponse = string.Empty;
-        chatHistory += "<br/><br/><b>assistant</b>: " + md.Transform(finalResults.ToString());
-        history.AddAssistantMessage(finalResults.ToString());
-        // Scroll to the bottom of the chat window
-        await js.InvokeVoidAsync("scrollToBottom", chatWindow);
-        StateHasChanged();
+        catch (Exception ex)
+        {
+            isResponding = false;
+            clearCancelText = "Clear";
+            StateHasChanged();
+            Console.WriteLine($"StreamChatCompletionAsync error: {ex.Message}");
+        }
     }
 
     private async Task HandleKeyDown(KeyboardEventArgs e)
@@ -228,7 +304,15 @@
             await UploadFile();
 
             selectedFile= null;
+        }
+        else
+        {
+            ShowAlert("The file you selected is empty or has no name.", AlertTypeEnum.warning);
+        }
 
+        if (selectedFile!=null && selectedFile.Size>maxFileSizeBytes)
+        {
+            ShowAlert("The file you selected is too large. Please select a file that is less than 1GB.", AlertTypeEnum.warning);
         }
     }
 
@@ -238,7 +322,7 @@
         {
             if (selectedFile == null)
             {
-                ShowAlert("You need to select a file to upload.", AlertTypeEnum.danger);
+                ShowAlert("You need to select a file to upload.", AlertTypeEnum.warning);
                 return;
             }
 
@@ -247,7 +331,7 @@
             var fileName = selectedFile.Name.ToLower();
             if (!(fileName.EndsWith(".pdf") || fileName.EndsWith(".docx") || fileName.EndsWith(".txt")))
             {
-                ShowAlert($"The file {selectedFile.Name} is not a supported file type. Please upload a PDF, DOCX, or TXT file.", AlertTypeEnum.danger);
+                ShowAlert($"The file {selectedFile.Name} is not a supported file type. Please upload a PDF, DOCX, or TXT file.", AlertTypeEnum.warning);
                 return;
             }
 
@@ -282,6 +366,7 @@
         catch (Exception ex)
         {
             ShowAlert($"An error occurred while uploading the file. {ex.Message}", AlertTypeEnum.danger);
+            isFileInputDisabled = false;
             Console.WriteLine($"UploadFile error: {ex.Message}");
         }
     }
@@ -298,14 +383,15 @@
                 {
                     if (!string.IsNullOrEmpty(paragraph.InnerText) && semanticMemory != null)
                     {
-                        await semanticMemory!.SaveInformationAsync("demo", paragraph.InnerText, Guid.NewGuid().ToString());
+                        await semanticMemory!.SaveInformationAsync(userName, paragraph.InnerText, Guid.NewGuid().ToString());
                     }
                 }
             }
         }
 
-        ShowAlert("Document upload and processing completed.");
     }
+
+ 
 
     private async Task ProcessPdfFile(MemoryStream memoryStream)
     {
@@ -320,12 +406,11 @@
                 {
                     if (!string.IsNullOrEmpty(paragraph) && semanticMemory != null)
                     {
-                        await semanticMemory.SaveInformationAsync("demo", paragraph, Guid.NewGuid().ToString());
+                        await semanticMemory.SaveInformationAsync(userName, paragraph, Guid.NewGuid().ToString());
                     }
                 }
             }
 
-            ShowAlert("Document upload and processing completed.");
         }
         catch (Exception ex)
         {
@@ -347,11 +432,11 @@
                 {
                     if (!string.IsNullOrEmpty(paragraph) && semanticMemory != null)
                     {
-                        await semanticMemory.SaveInformationAsync("demo", paragraph, Guid.NewGuid().ToString());
+                        await semanticMemory.SaveInformationAsync(userName, paragraph, Guid.NewGuid().ToString());
                     }
                 }
             }
-            ShowAlert("Document upload and processing completed.");
+ 
         }
         catch (Exception ex)
         {
@@ -389,16 +474,15 @@
         
         alertMessage += message + " ";
         this.alertType = "alert-" + (Enum.GetName(typeof(AlertTypeEnum), alertType)?.ToLower() ?? "warning");
-        showAlert = true;
         StateHasChanged();
     }
 
 
     private void CloseAlert()
     {
-        showAlert = false;
         alertMessage = string.Empty;
         alertType=string.Empty;
         StateHasChanged();
     }
+
 }

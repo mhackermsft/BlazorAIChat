@@ -63,3 +63,9 @@ h1:focus {
     height: auto; /* Adjust height as needed */
     line-height: normal; /* Adjust line height as needed */
 }
+
+.logout-button {
+    position:absolute;
+    right: 10px;
+    top: 10px;
+}

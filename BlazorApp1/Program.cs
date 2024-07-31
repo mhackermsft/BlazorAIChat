@@ -1,4 +1,7 @@
+using BlazorAIChat;
 using BlazorAIChat.Components;
+using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Components.Server;
 using Microsoft.AspNetCore.Http.Features;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -8,6 +11,8 @@ builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents()
     .AddCircuitOptions(options => options.DetailedErrors = true);
 
+builder.Services.AddScoped<AuthenticationStateProvider, ServerAuthenticationStateProvider>();
+
 
 builder.Services.Configure<FormOptions>(options =>
 {
@@ -15,6 +20,9 @@ builder.Services.Configure<FormOptions>(options =>
 });
 
 var app = builder.Build();
+
+//Add easy auth middleware
+app.UseMiddleware<EasyAuthMiddleware>();
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
