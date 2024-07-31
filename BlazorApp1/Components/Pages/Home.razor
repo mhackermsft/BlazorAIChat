@@ -6,8 +6,7 @@
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @using BlazorAIChat.Components.Shared
 @using Microsoft.AspNetCore.Components.Authorization
-@using Azure.Storage.Blobs
-@using Azure.Storage.Blobs.Specialized
+
 @using DocumentFormat.OpenXml.Packaging
 @using DocumentFormat.OpenXml.Wordprocessing
 @using MarkdownSharp;
@@ -109,14 +108,15 @@
             var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
             var user = authState.User;
 
-            if (user.Identity.IsAuthenticated)
+            if (user.Identity?.IsAuthenticated == true)
             {
-                userName = user.Identity.Name;
+                userName = user.Identity.Name ?? defaultUserName;
             }
             else
             {
                 userName = defaultUserName;
             }
+
         }
         catch (Exception ex)
         {
@@ -186,7 +186,7 @@
 
     }
 
-    private async void internalClear()
+    private void internalClear()
     {
         chatHistory = welcomeMessage;
         message = string.Empty;
