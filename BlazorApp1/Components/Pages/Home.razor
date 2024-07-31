@@ -45,6 +45,14 @@
     </div>
 </div>
 
+@if (showAlert)
+{
+    <div class="alert @alertType alert-dismissible alert-top-full-width" role="alert">
+        @alertMessage
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close" @onclick="CloseAlert"></button>
+    </div>
+}
+
 @code {
 
     #pragma warning disable SKEXP0010, SKEXP0001, SKEXP0020
@@ -66,6 +74,10 @@
 
     private ElementReference chatWindow;
     private InputFile? inputFile;
+
+    private bool showAlert { get; set; } = false;
+    private string alertMessage { get; set; } = string.Empty;
+    private string alertType { get; set; } = string.Empty;
 
     protected override async Task OnInitializedAsync()
     {
@@ -99,6 +111,7 @@
         catch (Exception ex)
         {
             Console.WriteLine($"Initialization error: {ex.Message}");
+            ShowAlert($"An error occurred while initializing the chat. {ex.Message}", AlertTypeEnum.danger);
         }
     }
 
@@ -112,7 +125,7 @@
         if (confirmed)
         {
             await memoryStore!.DeleteCollectionAsync("demo");
-            await js.InvokeVoidAsync("alert", "All documents have been removed.");
+            ShowAlert("All documents have been removed.", AlertTypeEnum.info);
         }
 
     }
@@ -215,128 +228,177 @@
             await UploadFile();
 
             selectedFile= null;
-            
+
         }
     }
 
     private async Task UploadFile()
     {
-        if (selectedFile == null)
+        try
         {
-            await js.InvokeVoidAsync("alert", "You need to select a file to upload.");
-            return;
-        }
-        isFileInputDisabled = true;
-        StateHasChanged();
-
-        //only upload PDFs, DOCX, and TXT files
-        if (!selectedFile.Name.ToLower().EndsWith(".pdf") && !selectedFile.Name.ToLower().EndsWith(".docx") && !selectedFile.Name.ToLower().EndsWith(".txt"))
-        {
-            await js.InvokeVoidAsync("alert", $"The file {selectedFile.Name} is not a supported file type. Please upload a PDF, DOCX, or TXT file.");
-            return;
-        }
-
-
-        //if the file is a docx, extract the text and save embedding
-        if (selectedFile.Name.ToLower().EndsWith(".docx"))
-        {
-            using (var stream = selectedFile.OpenReadStream(maxAllowedSize: 1073741824)) //1GB
+            if (selectedFile == null)
             {
-                using (MemoryStream memoryStream = new MemoryStream())
+                ShowAlert("You need to select a file to upload.", AlertTypeEnum.danger);
+                return;
+            }
+
+
+            // Only upload PDFs, DOCX, and TXT files
+            var fileName = selectedFile.Name.ToLower();
+            if (!(fileName.EndsWith(".pdf") || fileName.EndsWith(".docx") || fileName.EndsWith(".txt")))
+            {
+                ShowAlert($"The file {selectedFile.Name} is not a supported file type. Please upload a PDF, DOCX, or TXT file.", AlertTypeEnum.danger);
+                return;
+            }
+
+            isFileInputDisabled = true;
+            StateHasChanged();
+
+            using var stream = selectedFile.OpenReadStream(maxAllowedSize: 1073741824); // 1GB
+            using var memoryStream = new MemoryStream();
+            await stream.CopyToAsync(memoryStream);
+            memoryStream.Position = 0;
+
+            if (fileName.EndsWith(".docx"))
+            {
+                await ProcessDocxFile(memoryStream);
+            }
+            else if (fileName.EndsWith(".pdf"))
+            {
+                await ProcessPdfFile(memoryStream);
+            }
+            else if (fileName.EndsWith(".txt"))
+            {
+                await ProcessTxtFile(memoryStream);
+            }
+
+            if (inputFile != null)
+            {
+                await js.InvokeVoidAsync("clearElementValue", inputFile.Element);
+            }
+            isFileInputDisabled = false;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            ShowAlert($"An error occurred while uploading the file. {ex.Message}", AlertTypeEnum.danger);
+            Console.WriteLine($"UploadFile error: {ex.Message}");
+        }
+    }
+
+    private async Task ProcessDocxFile(MemoryStream memoryStream)
+    {
+        using (WordprocessingDocument wordDoc = WordprocessingDocument.Open(memoryStream, false))
+        {
+            Body? body = wordDoc.MainDocumentPart?.Document.Body;
+            if (body != null)
+            {
+                var paragraphs = body.Elements<Paragraph>();
+                foreach (var paragraph in paragraphs)
                 {
-                    await stream.CopyToAsync(memoryStream);
-                    memoryStream.Position = 0;
-
-                    using (WordprocessingDocument wordDoc = WordprocessingDocument.Open(memoryStream, false))
+                    if (!string.IsNullOrEmpty(paragraph.InnerText) && semanticMemory != null)
                     {
-                        Body? body = wordDoc.MainDocumentPart?.Document.Body;
-                        if (body != null)
-                        {
-                            var paragraphs = body.Elements<Paragraph>();
-
-                            foreach (var paragraph in paragraphs)
-                            {
-                                if (!string.IsNullOrEmpty(paragraph.InnerText))
-                                    await semanticMemory!.SaveInformationAsync("demo", paragraph.InnerText, Guid.NewGuid().ToString());
-                            }
-                        }
+                        await semanticMemory!.SaveInformationAsync("demo", paragraph.InnerText, Guid.NewGuid().ToString());
                     }
                 }
             }
-            await js.InvokeVoidAsync("alert", "Document upload and processing completed.");
         }
 
-        //if the file is a pdf, extract the text and save embedding
-        if (selectedFile.Name.ToLower().EndsWith(".pdf"))
-        {
-            using var memoryStream = new MemoryStream();
-            await selectedFile.OpenReadStream(maxAllowedSize: 1073741824).CopyToAsync(memoryStream);//1GB
-            memoryStream.Position = 0;
-            using var pdfDocument = PdfDocument.Open(memoryStream);
+        ShowAlert("Document upload and processing completed.");
+    }
 
-            //extract text from each paragraph
-            List<string> paragraphList = new List<string>();
+    private async Task ProcessPdfFile(MemoryStream memoryStream)
+    {
+        try
+        {
+            using var pdfDocument = PdfDocument.Open(memoryStream);
             foreach (var page in pdfDocument.GetPages())
             {
                 string pageText = page.Text;
                 var paragraphs = SplitIntoParagraphs(pageText);
                 foreach (var paragraph in paragraphs)
                 {
-                    paragraphList.Add(paragraph);
-                }
-            }
-
-            //Create embeddings for each paragraph and save to sqlite semantic kernel memory
-            foreach (var paragraph in paragraphList)
-            {
-                if (!string.IsNullOrEmpty(paragraph))
-                    await semanticMemory!.SaveInformationAsync("demo", paragraph, Guid.NewGuid().ToString());
-            }
-
-            await js.InvokeVoidAsync("alert", "Document upload and processing completed.");
-        }
-
-        //if the file is a txt, save the embedding
-        if (selectedFile.Name.ToLower().EndsWith(".txt"))
-        {
-            //read the text from selectedFile, chunk it into paragraphs, and save each paragraph to the semantic memory
-            using (var stream = selectedFile.OpenReadStream(maxAllowedSize:1073741824)) //1GB
-            {
-                using (StreamReader reader = new StreamReader(stream))
-                {
-                    string text = reader.ReadToEnd();
-                    var paragraphs = SplitIntoParagraphs(text);
-                    foreach (var paragraph in paragraphs)
+                    if (!string.IsNullOrEmpty(paragraph) && semanticMemory != null)
                     {
-                        if (!string.IsNullOrEmpty(paragraph))
-                            await semanticMemory!.SaveInformationAsync("demo", paragraph, Guid.NewGuid().ToString());
+                        await semanticMemory.SaveInformationAsync("demo", paragraph, Guid.NewGuid().ToString());
                     }
                 }
             }
 
-            await js.InvokeVoidAsync("alert", "Document upload and processing completed.");
+            ShowAlert("Document upload and processing completed.");
         }
-
-        if (inputFile != null)
+        catch (Exception ex)
         {
-            await js.InvokeVoidAsync("clearElementValue", inputFile.Element);
+            Console.WriteLine($"ProcessPdfFile error: {ex.Message}");
+            ShowAlert($"An error occurred while processing the PDF document. {ex.Message}", AlertTypeEnum.danger);
         }
-        isFileInputDisabled = false;
-        StateHasChanged();
     }
+
+
+    private async Task ProcessTxtFile(MemoryStream memoryStream)
+    {
+        try
+        {
+            using (StreamReader reader = new StreamReader(memoryStream))
+            {
+                string text = await reader.ReadToEndAsync();
+                var paragraphs = SplitIntoParagraphs(text);
+                foreach (var paragraph in paragraphs)
+                {
+                    if (!string.IsNullOrEmpty(paragraph) && semanticMemory != null)
+                    {
+                        await semanticMemory.SaveInformationAsync("demo", paragraph, Guid.NewGuid().ToString());
+                    }
+                }
+            }
+            ShowAlert("Document upload and processing completed.");
+        }
+        catch (Exception ex)
+        {
+            ShowAlert($"An error occurred while processing the document. {ex.Message}", AlertTypeEnum.danger);
+            Console.WriteLine($"ProcessTxtFile error: {ex.Message}");
+        }
+    }
+
+
 
     private List<string> SplitIntoParagraphs(string text)
     {
         var paragraphs = new List<string>();
-        var matches = Regex.Split(text, @"\r\n\r\n|\n\n|\r\r");
-        foreach (var match in matches)
+        try
         {
-            if (!string.IsNullOrWhiteSpace(match))
+            var matches = Regex.Split(text, @"(\r\n|\n|\r){2,}");
+            foreach (var match in matches)
             {
-                paragraphs.Add(match.Trim());
+                if (!string.IsNullOrWhiteSpace(match))
+                {
+                    paragraphs.Add(match.Trim());
+                }
             }
+        }
+        catch (Exception ex)
+        {
+            ShowAlert($"Error splitting text into paragraphs: {ex.Message}", AlertTypeEnum.danger);
+            Console.WriteLine($"Error splitting text into paragraphs: {ex.Message}");
         }
         return paragraphs;
     }
 
+    private void ShowAlert(string message, AlertTypeEnum alertType= AlertTypeEnum.info)
+    {
+        
+        alertMessage += message + " ";
+        this.alertType = "alert-" + (Enum.GetName(typeof(AlertTypeEnum), alertType)?.ToLower() ?? "warning");
+        showAlert = true;
+        StateHasChanged();
+    }
+
+
+    private void CloseAlert()
+    {
+        showAlert = false;
+        alertMessage = string.Empty;
+        alertType=string.Empty;
+        StateHasChanged();
+    }
 }
