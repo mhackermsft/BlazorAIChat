@@ -68,8 +68,6 @@ This solution has been tested with the gpt-4o chat model and the text-embedding-
 * Update the appsettings.json file with the proper values
 * You can run the app locally through Visual Studio or you can publish the application to an Azure App Service or other .NET web host.
 
-
-
 ## Authentication
 * If running locally, outside of Azure, or without EasyAuth, the app will show the user as a guest.
 * If running on an Azure App Service with EasyAuth configured, the app will show the logged in username.
