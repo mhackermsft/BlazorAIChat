@@ -70,6 +70,16 @@ This solution has been tested with the gpt-4o chat model and the text-embedding-
 
 [![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fmhackermsft%2FBlazorAIChat%2Fmaster%2FInfra%2Fazuredeploy.json)
 
+Note: This will deploy Azure services that will be billed against your Azure subscription. The deployment template allows you to choose region, web app SKU, AI Chat model, AI embed model, along with OpenAI capacity size.  These options will impact the cost of the deployed solutions.
+
+**Warning:** If you do not enable EasyAuth, your website will be available **on the public internet** by default. This means that **other people can connect and use the website**. You will **incur Azure OpenAI charges** for all usage of your website. If you upload documents, that **knowledge will be accessible to all users**. 
+
+If you want to protect the website it is highly recommended that you set `Require Easy Auth` to true during the deployment and then configure EasyAuth authentication on the App Service once the deployment completes. Once EasyAuth is configured, each user will be required to login and they will have their own knowledge base which is not shared with other users.
+
+TLDR; If users see a green tag with the word guest located in the top left of the app, all of the uploaded knowledge is shared among the users.
+
+
+
 ## Authentication
 * If running locally, outside of Azure, or without EasyAuth, the app will show the user as a guest.
 * If running on an Azure App Service with EasyAuth configured, the app will show the logged in username.
