@@ -106,6 +106,16 @@ All of the settings noted above in the appsettings.json file can be configured i
 
 TLDR; If users see a green tag with the word guest located in the top left of the app, all of the uploaded knowledge is shared among the users.
 
+### AI Model Capacity
+When deploying to Azure, you can set various deployment properties, including the AI model capacity. This capacity represents the quota assigned to the model deployment.
+
+- 1 unit = 1,000 Tokens per Minute (TPM)
+- 10 units = 10,000 Tokens per Minute (TPM)
+
+Select a value that meets your token and request requirements while staying within the available capacity for the model.
+
+Read more about Azure OpenAI Service quota here: https://learn.microsoft.com/en-us/azure/ai-services/openai/how-to/quota?tabs=rest
+
 ### Costs
 The cost to operate this demo application in your subscription will depend upon a few factors:
 - **App Service Plan size** - The deployment script by default uses the free tier. You can, however, adjust this to increase performance and features.
@@ -128,6 +138,15 @@ All uploaded knowledge is stored in a SQLite database locally on the application
 Users can use the clear button in the application to delete all of their uploaded knowledge. They currently cannot choose specific pieces of knowledge to delete.
 
 An administrator may choose to delete the memory.sqlite file from the host to clear out all knowledge for all users.
+
+## Impact of Azure OpenAI Capacity Settings
+
+This demonstration application is designed for low-volume use and does not include retry logic for Azure OpenAI calls. If a request exceeds the allocated Azure OpenAI quota for the chat or embedding model, a notification will appear at the top of the application. 
+
+To address this issue, please ensure that your Azure OpenAI models are configured with the appropriate quota to accommodate the volume of tokens and requests being submitted.
+
+For more information on managing your Azure OpenAI service quotas, please visit this link: https://learn.microsoft.com/en-us/azure/ai-services/openai/how-to/quota?tabs=rest
+
 
 ## Disclaimer
 This code is for demonstration purposes only. It has not been evaluated or reviewed for production purposes. Please utilize caution and do your own due diligence before using this code. I am not responsible for any issues you experience or damages caused by the use or misuse of this code.
