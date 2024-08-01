@@ -1,4 +1,5 @@
 # Blazor Azure OpenAI Chat Demo
+##### BlazorAIChat: AI-Powered Chat Application
 
 ## Overview
 This is a sample .NET 8 Blazor Interactive Server application for chatting with Azure OpenAI Models. Users may upload TXT, DOCX or PDF documents to a knowledge base for the AI to use when responding. If configured, it can also upload images for those AI models that support images in chat.
@@ -11,13 +12,15 @@ This solution utilizes several open source libraries to help with document inges
 * Semantic Kernel
 
 ## Features
-* Chat with your data using Azure OpenAI models
-* Can be run locally or hosted on Azure App Service
-* If run in Azure, it can use EasyAuth authentication.
-* User can upload TXT, DOCX or PDF documents into the knowledge base. If running on Azure App Service with EasyAuth, the knowledge uploaded is associated only to the user who uploaded the content.
-* If the model supports, the user can upload an image and ask questions about it. (works well with gpt-4o)
-* Streaming chat results with the ability to stop the response.
-* Ability to clear chat and/or delete the data stored in the user's knowledge base.
+- **AI Integration**: Utilizes advanced AI models to provide intelligent responses.
+- **Data Interaction**: Enables users to chat with their data using Azure OpenAI models.
+- **Deployment Flexibility**: Can be operated locally or hosted on Azure App Service.
+- **Authentication**: Supports EasyAuth authentication when hosted on Azure.
+- **Document Upload**: Allows users to upload TXT, DOCX, or PDF documents into the knowledge base. When using Azure App Service with EasyAuth, uploaded knowledge is associated exclusively with the user.
+- **Image Analysis**: Supports image uploads for querying, compatible with models like GPT-4.
+- **Streaming Responses**: Provides streaming chat results with the option to stop responses.
+- **Data Management**: Offers the ability to clear chat history and delete data stored in the user's knowledge base.
+
 
 ## Chat Over Documents (RAG)
 Retrieval-augmented generation (RAG) is a technique that combines information retrieval with generative models to produce more accurate and contextually relevant responses by incorporating external knowledge sources. 
@@ -37,8 +40,11 @@ For more accurate document ingestion, processing, and semantic search it is reco
 Note: If deployed on an Azure App Service with EasyAuth enabled, the uploaded documents become knowledge for only the user who uploaded the document. It does not share the knowledge with other users of the solution.  If you are not using EasyAuth, you are running local, or deployed the app on another .NET web host, all of the users will be considered guests and all of the knowledge uploaded will be shared.
 
 ## Requirements
-* Azure Subscription with at least 1 Azure OpenAI chat model and 1 Azure OpenAI embedding model deployed.
-* Can be run locally or published to an Azure App Service. If deployed on Azure App Service, you can enable EasyAuth.
+- **Azure Subscription**: Must include at least one Azure OpenAI chat model and one Azure OpenAI embedding model deployed.
+- **Deployment Options**: 
+  - **Local**: Can be run locally.
+  - **Azure App Service**: Can be published to an Azure App Service. If deployed on Azure App Service, EasyAuth can be enabled for authentication.
+
 
 ## Configuration
 The appsettings.json file has a few configuration parameters that must be set for the app to properly work:
@@ -57,19 +63,35 @@ The appsettings.json file has a few configuration parameters that must be set fo
   "SystemMessage" : "You are a helpful AI assistant. Respond in a friendly and professional tone."
   ```
 
-* Under the AzureOpenAIChatCompletion section include your Azure OpenAI endpoint URL, API Key, and the name of the deployed chat model you want to use. If the model supports images, set SupportsImages to true.
-* Under the AzureOpenAIEmbedding section include the deployed embedding model you want to use. It is assumed that both the chat and embedding models are accessed through the same Azure OpenAI endpoint and API key.
-* If you are using EasyAuth with Azure App Service, it is recommended to set RequireEasyAuth to true to validate a person is fully logged in and not being seen as a guest.
+- **AzureOpenAIChatCompletion Configuration**: 
+  - Include your Azure OpenAI endpoint URL, API Key, and the name of the deployed chat model you intend to use.
+  - If the model supports images, set `SupportsImages` to `true`.
 
-This solution has been tested with the gpt-4o chat model and the text-embedding-ada-002 model. You should be able to plug in other models to test them out.
+- **AzureOpenAIEmbedding Configuration**: 
+  - Specify the deployed embedding model you plan to use.
+  - Both the chat and embedding models are assumed to be accessed through the same Azure OpenAI endpoint and API key.
+
+- **EasyAuth Configuration**: 
+  - If utilizing EasyAuth with Azure App Service, it is recommended to set `RequireEasyAuth` to `true` to ensure that users are fully authenticated and not recognized as guests.
+
+This solution has been tested with the `gpt-4o` chat model and the `text-embedding-ada-002` model. Other models can be integrated and tested as needed.
+
 
 ## Deployment
-* You need to manually create your Azure OpenAI Service and deploy a chat and embedding model.
-* Clone this repo, open in Visual Studio 2022.
-* Update the appsettings.json file with the proper values
-* You can run the app locally through Visual Studio or you can publish the application to an Azure App Service or other .NET web host.
 
-If you wish to deploy into Azure, you can use the button below. Please READ and understand ALL of the information in this section before pressing the Deploy to Azure button.
+### Manual Deployment
+
+- **Azure OpenAI Service Setup**: Manually create your Azure OpenAI Service and deploy both a chat model and an embedding model.
+- **Repository Cloning**: Clone this repository and open it in Visual Studio 2022.
+- **Configuration**: Update the `appsettings.json` file with the appropriate values.
+- **Running the Application**: You can run the application locally through Visual Studio or publish it to an Azure App Service or another .NET web host.
+
+### Automatic Deployment to Azure
+
+To deploy the application to Azure, you can use the button below. This process will create an Azure App Service Plan, an Azure App Service, and an Azure OpenAI Service with two models deployed. It will also deploy the website to the Azure App Service.
+
+**Important**: Please read and understand all the information in this section before pressing the "Deploy to Azure" button.
+
 
 [![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fmhackermsft%2FBlazorAIChat%2Fmaster%2FInfra%2Fazuredeploy.json)
 
