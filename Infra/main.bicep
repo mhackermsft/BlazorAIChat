@@ -8,9 +8,11 @@ param aiSkuName string = 'S0'
 param aiChatModelName string = 'gpt-4o'
 param aiChatModelVersion string = '2024-05-13'
 param aiChatModelCapacity int = 80
+param aiChatModelSupportsImages bool = true
 param aiEmbedModelName string = 'text-embedding-ada-002'
 param aiEmbedModelVersion string = '2'
 param aiEmbedModelCapacity int = 120
+param requireEasyAuth bool = false
 var appServicePlanName = toLower('BlazorAIChatPlan-${uniqueName}')
 var webSiteName = toLower('BlazorAIChat-${uniqueName}')
 
@@ -48,7 +50,7 @@ resource appService 'Microsoft.Web/sites@2020-06-01' = {
         }
         {
           name: 'AzureOpenAIChatCompletion__SupportsImages'
-          value: 'true'
+          value: aiChatModelSupportsImages ? 'true' : 'false'
         }
         {
           name: 'AzureOpenAIEmbedding__Model'
@@ -56,7 +58,7 @@ resource appService 'Microsoft.Web/sites@2020-06-01' = {
         }
         {
           name: 'RequireEasyAuth'
-          value: 'false'
+          value: requireEasyAuth ? 'true' : 'false'
         }
       ]
     }
