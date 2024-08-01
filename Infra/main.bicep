@@ -7,8 +7,10 @@ param openAiServiceName string = toLower('BlazorAIChatOpenAI-${uniqueName}')
 param aiSkuName string = 'S0'
 param aiChatModelName string = 'gpt-4o'
 param aiChatModelVersion string = '2024-05-13'
+param aiChatModelCapacity int = 80
 param aiEmbedModelName string = 'text-embedding-ada-002'
 param aiEmbedModelVersion string = '2'
+param aiEmbedModelCapacity int = 120
 var appServicePlanName = toLower('BlazorAIChatPlan-${uniqueName}')
 var webSiteName = toLower('BlazorAIChat-${uniqueName}')
 
@@ -59,6 +61,10 @@ resource appService 'Microsoft.Web/sites@2020-06-01' = {
       ]
     }
   }
+  dependsOn: [
+    appServicePlan
+    openAiService
+  ]
 }
 
 resource gitsource 'Microsoft.Web/sites/sourcecontrols@2022-03-01' = {
@@ -69,6 +75,9 @@ resource gitsource 'Microsoft.Web/sites/sourcecontrols@2022-03-01' = {
     branch: branch
     isManualIntegration: true
   }
+  dependsOn: [
+    appService
+  ]
 }
 
 
@@ -85,6 +94,7 @@ resource openAiService 'Microsoft.CognitiveServices/accounts@2021-04-30' = {
       enableOpenAI: true
     }
   }
+
 }
 
 
@@ -101,8 +111,11 @@ resource openAiChat 'Microsoft.CognitiveServices/accounts/deployments@2023-05-01
   }
   sku: {
     name: 'standard'
-    capacity: 1
+    capacity: aiChatModelCapacity
   }
+  dependsOn:[
+    openAiService
+  ]
 }
 
 // Deploy the embed model
@@ -118,6 +131,9 @@ resource openAiEmbed 'Microsoft.CognitiveServices/accounts/deployments@2023-05-0
   }
   sku: {
     name: 'standard'
-    capacity: 1
+    capacity: aiEmbedModelCapacity
   }
+  dependsOn:[
+    openAiService
+  ]
 }

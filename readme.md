@@ -68,7 +68,7 @@ This solution has been tested with the gpt-4o chat model and the text-embedding-
 * Update the appsettings.json file with the proper values
 * You can run the app locally through Visual Studio or you can publish the application to an Azure App Service or other .NET web host.
 
-[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/)
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fmhackermsft%2FBlazorAIChat%2Fmaster%2FInfra%2Fazuredeploy.json)
 
 ## Authentication
 * If running locally, outside of Azure, or without EasyAuth, the app will show the user as a guest.
