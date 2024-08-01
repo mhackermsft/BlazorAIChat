@@ -69,13 +69,18 @@ This solution has been tested with the gpt-4o chat model and the text-embedding-
 * Update the appsettings.json file with the proper values
 * You can run the app locally through Visual Studio or you can publish the application to an Azure App Service or other .NET web host.
 
+If you wish to deploy into Azure, you can use the button below. Please READ and understand ALL of the information in this section before pressing the Deploy to Azure button.
+
 [![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fmhackermsft%2FBlazorAIChat%2Fmaster%2FInfra%2Fazuredeploy.json)
 
-Note: This will deploy Azure services that will be billed against your Azure subscription. The deployment template allows you to choose region, web app SKU, AI Chat model, AI embed model, along with OpenAI capacity size.  These options will impact the cost of the deployed solutions.
+#### Important Azure Deployment Notes  
+The button above will deploy Azure services that will be billed against your Azure subscription. The deployment template allows you to choose region, web app SKU, AI Chat model, AI embed model, along with OpenAI capacity size.  These options will impact the cost of the deployed solutions.
 
 **Warning:** If you do not enable EasyAuth, your website will be available **on the public internet** by default. This means that **other people can connect and use the website**. You will **incur Azure OpenAI charges** for all usage of your website. If you upload documents, that **knowledge will be accessible to all users**. 
 
 If you want to protect the website it is highly recommended that you set `Require Easy Auth` to true during the deployment and then configure EasyAuth authentication on the App Service once the deployment completes. Once EasyAuth is configured, each user will be required to login and they will have their own knowledge base which is not shared with other users.
+
+All of the settings noted above in the appsettings.json file can be configured in the Azure Portal by going to the Azure App Service environment settings.
 
 TLDR; If users see a green tag with the word guest located in the top left of the app, all of the uploaded knowledge is shared among the users.
 
@@ -94,5 +99,5 @@ Users can use the clear button in the application to delete all of their uploade
 
 An administrator may choose to delete the memory.sqlite file from the host to clear out all knowledge for all users.
 
-### Disclaimer
+## Disclaimer
 This code is for demonstration purposes only. It has not been evaluated or reviewed for production purposes. Please utilize caution and do your own due diligence before using this code. I am not responsible for any issues you experience or damages caused by the use or misuse of this code.
