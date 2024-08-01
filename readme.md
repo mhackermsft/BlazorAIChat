@@ -106,7 +106,15 @@ All of the settings noted above in the appsettings.json file can be configured i
 
 TLDR; If users see a green tag with the word guest located in the top left of the app, all of the uploaded knowledge is shared among the users.
 
+### Costs
+The cost to operate this demo application in your subscription will depend upon a few factors:
+- **App Service Plan size** - The deployment script by default uses the free tier. You can, however, adjust this to increase performance and features.
+- **Azure OpenAI Service** - Two Azure OpenAI Models are required in order for this demo to function properly. The recommended models are `gpt-4o` and `text-embedding-ada-002`. The chat models are priced based on the number of input and output tokens. The embedding model is priced based on the number of tokens.
 
+You can learn more about the cost for Azure App Service and Azure OpenAI models at the links below.
+
+- **Azure App Service** - https://azure.microsoft.com/en-us/pricing/details/app-service/windows/
+- **Azure OpenAI** - https://azure.microsoft.com/en-us/pricing/details/cognitive-services/openai-service/
 
 ## Authentication
 * If running locally, outside of Azure, or without EasyAuth, the app will show the user as a guest.
