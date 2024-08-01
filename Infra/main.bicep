@@ -134,6 +134,6 @@ resource openAiEmbed 'Microsoft.CognitiveServices/accounts/deployments@2023-05-0
     capacity: aiEmbedModelCapacity
   }
   dependsOn:[
-    openAiService
+    openAiChat
   ]
 }
