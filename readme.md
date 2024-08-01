@@ -53,7 +53,8 @@ The appsettings.json file has a few configuration parameters that must be set fo
   "AzureOpenAIEmbedding": {
     "Model": ""
   },
-  "RequireEasyAuth": false
+  "RequireEasyAuth": false,
+  "SystemMessage" : "You are a helpful AI assistant. Respond in a friendly and professional tone."
   ```
 
 * Under the AzureOpenAIChatCompletion section include your Azure OpenAI endpoint URL, API Key, and the name of the deployed chat model you want to use. If the model supports images, set SupportsImages to true.
