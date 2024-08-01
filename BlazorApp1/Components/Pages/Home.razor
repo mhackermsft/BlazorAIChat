@@ -110,6 +110,8 @@
     byte[]? uploadImageByteArray = null;
     string uploadImageType= string.Empty;
 
+    string systemMessage = "You are a helpful AI assistant. Respond in a friendly and professional tone.";
+
     protected override async Task OnInitializedAsync()
     {
         ClaimsPrincipal? user = null;
@@ -142,6 +144,7 @@
             var embedModel = Configuration["AzureOpenAIEmbedding:Model"] ?? string.Empty;
             chatModelSupportsImages = bool.Parse(Configuration["AzureOpenAIChatCompletion:SupportsImages"] ?? "false");
             RequireEasyAuth = bool.Parse(Configuration["RequireEasyAuth"] ?? "false");
+            systemMessage = Configuration["SystemMessage"] ?? systemMessage;
 
             //If the user is not authenticated and guests are not allowed, then redirect to the login page
             if ((user?.Identity?.IsAuthenticated == false || userName == defaultUserName) && RequireEasyAuth)
@@ -213,7 +216,7 @@
         uploadImageType = string.Empty;
         message = string.Empty;
         history = new ChatHistory();
-        history.AddAssistantMessage("You are a helpful AI assistant. Do not discuss the memories unless asked.");
+        history.AddSystemMessage(systemMessage);
         StateHasChanged();
     }
 
