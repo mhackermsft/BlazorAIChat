@@ -4,7 +4,6 @@ param location string = resourceGroup().location
 param repositoryUrl string = 'https://github.com/mhackermsft/BlazorAIChat'
 param branch string = 'master'
 param openAiServiceName string = toLower('BlazorAIChatOpenAI-${uniqueName}')
-param cosmosDbName string = toLower('BlazorAIChatCosmos-${uniqueName}')
 param aiSkuName string = 'S0'
 param aiChatModelName string = 'gpt-4o'
 param aiChatModelVersion string = '2024-05-13'
@@ -13,10 +12,7 @@ param aiChatModelSupportsImages bool = true
 param aiEmbedModelName string = 'text-embedding-ada-002'
 param aiEmbedModelVersion string = '2'
 param aiEmbedModelCapacity int = 120
-param requireEasyAuth bool = false
-param useFreeCosmosDb bool = false
-param cosmosDbUsername string = ''
-param cosmosDbPassword string = ''
+param requireEasyAuth bool = true
 
 var appServicePlanName = toLower('BlazorAIChatPlan-${uniqueName}')
 var webSiteName = toLower('BlazorAIChat-${uniqueName}')
@@ -63,20 +59,28 @@ resource appService 'Microsoft.Web/sites@2020-06-01' = {
           value: toLower('${aiEmbedModelName}-${uniqueName}')
         }
         {
+          name:'SystemMessage'
+          value:'You are a helpful AI assistant. Respond in a friendly and professional tone.'
+        }
+        {
           name: 'RequireEasyAuth'
           value: requireEasyAuth ? 'true' : 'false'
         }
         {
           name: 'ConnectionStrings__CosmosDB'
-          value: mongoClustersResource.properties.connectionString
+          value: ''
+        }
+        {
+          name: 'CosmosDB__DatabaseName'
+          value: ''
         }
         {
           name: 'CosmosDB__Username'
-          value: cosmosDbUsername
+          value: ''
         }
         {
           name: 'CosmosDB__Password'
-          value: cosmosDbPassword
+          value: ''
         }
 
       ]
@@ -85,7 +89,6 @@ resource appService 'Microsoft.Web/sites@2020-06-01' = {
   dependsOn: [
     appServicePlan
     openAiService
-    mongoClustersResource 
   ]
 }
 
@@ -158,35 +161,5 @@ resource openAiEmbed 'Microsoft.CognitiveServices/accounts/deployments@2023-05-0
   dependsOn:[
     openAiChat
   ]
-}
-
-
-resource mongoClustersResource 'Microsoft.DocumentDB/mongoClusters@2024-03-01-preview' = if (useFreeCosmosDb) {
-  name: cosmosDbName
-  location: 'southindia'
-  properties: {
-    administratorLogin: cosmosDbUsername
-    administratorLoginPassword: cosmosDbPassword
-    serverVersion: '7.0'
-    nodeGroupSpecs: [
-      {
-        kind: 'Shard'
-        sku: 'Free'
-        diskSizeGB: 32
-        enableHa: false
-        nodeCount: 1
-      }
-    ]
-    publicNetworkAccess: 'Enabled'
-  }
-}
-
-resource mongoCLusterFirewall 'Microsoft.DocumentDB/mongoClusters/firewallRules@2024-03-01-preview' = if (useFreeCosmosDb) {
-  parent: mongoClustersResource
-  name: 'AllowAllAzureServicesAndResourcesWithinAzureIps'
-  properties: {
-    startIpAddress: '0.0.0.0'
-    endIpAddress: '0.0.0.0'
-  }
 }
 

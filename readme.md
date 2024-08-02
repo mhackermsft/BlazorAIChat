@@ -40,7 +40,7 @@ For more accurate document ingestion, processing, and semantic search it is reco
 Note: If deployed on an Azure App Service with EasyAuth enabled, the uploaded documents become knowledge for only the user who uploaded the document. It does not share the knowledge with other users of the solution.  If you are not using EasyAuth, you are running local, or deployed the app on another .NET web host, all of the users will be considered guests and all of the knowledge uploaded will be shared.
 
 ## Requirements
-- **Azure Subscription**: Must include at least one Azure OpenAI chat model and one Azure OpenAI embedding model deployed.
+- **Azure Subscription**: Must include at least one Azure OpenAI chat model and one Azure OpenAI embedding model deployed. Optionally you can use Azure Cosmos DB for MongoDB for the knowledge storage. 
 - **Deployment Options**: 
   - **Local**: Can be run locally.
   - **Azure App Service**: Can be published to an Azure App Service. If deployed on Azure App Service, EasyAuth can be enabled for authentication.
@@ -59,8 +59,17 @@ The appsettings.json file has a few configuration parameters that must be set fo
   "AzureOpenAIEmbedding": {
     "Model": ""
   },
-  "RequireEasyAuth": false,
-  "SystemMessage" : "You are a helpful AI assistant. Respond in a friendly and professional tone."
+  "RequireEasyAuth": true,
+  "SystemMessage" : "You are a helpful AI assistant. Respond in a friendly and professional tone.",
+  "ConnectionStrings": {
+    "CosmosDB": ""
+  },
+  "CosmosDB":
+  {
+    "DatabaseName": "",
+    "Username": "",
+    "Password": ""
+  }
   ```
 
 - **AzureOpenAIChatCompletion Configuration**: 
@@ -70,6 +79,12 @@ The appsettings.json file has a few configuration parameters that must be set fo
 - **AzureOpenAIEmbedding Configuration**: 
   - Specify the deployed embedding model you plan to use.
   - Both the chat and embedding models are assumed to be accessed through the same Azure OpenAI endpoint and API key.
+
+- **Cosmos DB (optional)**:
+If you would like to use Cosmos DB in place of SQLite for memory storage, you must manually deploy an Azure Cosmos DB for MongoDB (vcore) instance and configure the following settings.
+  - Specify the connection string to the Cosmos DB for MongoDB instance.
+  - Specify a database name. This database should not already be created.
+  - Specify the admin username and password for the database.
 
 - **EasyAuth Configuration**: 
   - If utilizing EasyAuth with Azure App Service, it is recommended to set `RequireEasyAuth` to `true` to ensure that users are fully authenticated and not recognized as guests.
@@ -88,9 +103,9 @@ This solution has been tested with the `gpt-4o` chat model and the `text-embeddi
 
 ### Automatic Deployment to Azure
 
-To deploy the application to Azure, you can use the button below. This process will create an Azure App Service Plan, an Azure App Service, and an Azure OpenAI Service with two models deployed. It will also deploy the website to the Azure App Service.
+To deploy the application to Azure, you can use the button below. This process will create an Azure App Service Plan, an Azure App Service, and an Azure OpenAI Service with two models deployed. It will also deploy the website to the Azure App Service. 
 
-**Important**: Please read and understand all the information in this section before pressing the "Deploy to Azure" button.
+**Important**: Please read and understand all the information in this section before pressing the "Deploy to Azure" button. **For protection, the default value for RequireEasyAuth is set to true.**
 
 
 [![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fmhackermsft%2FBlazorAIChat%2Fmaster%2FInfra%2Fazuredeploy.json)
@@ -133,7 +148,9 @@ You can learn more about the cost for Azure App Service and Azure OpenAI models 
 See the following link for details about configuring EasyAuth in Azure App Service: https://learn.microsoft.com/en-us/azure/app-service/overview-authentication-authorization
 
 ## Knowledge Storage
-All uploaded knowledge is stored in a SQLite database locally on the application host. The file is called memory.sqlite and is NOT encrypted. It is important to protect this file if any sensitive content is uploaded to the solution. 
+All uploaded knowledge is stored by default in a SQLite database locally on the application host. The file is called memory.sqlite and is NOT encrypted. It is important to protect this file if any sensitive content is uploaded to the solution. 
+
+Optionally you can configure the demo to utilize an Azure Cosmos DB for MongoDB instance as the knowledge store.
 
 Users can use the clear button in the application to delete all of their uploaded knowledge. They currently cannot choose specific pieces of knowledge to delete.
 

@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.29.47.4906",
-      "templateHash": "5959165439653634770"
+      "templateHash": "7804975607341375535"
     }
   },
   "parameters": {
@@ -32,10 +32,6 @@
     "openAiServiceName": {
       "type": "string",
       "defaultValue": "[toLower(format('BlazorAIChatOpenAI-{0}', parameters('uniqueName')))]"
-    },
-    "cosmosDbName": {
-      "type": "string",
-      "defaultValue": "[toLower(format('BlazorAIChatCosmos-{0}', parameters('uniqueName')))]"
     },
     "aiSkuName": {
       "type": "string",
@@ -71,19 +67,7 @@
     },
     "requireEasyAuth": {
       "type": "bool",
-      "defaultValue": false
-    },
-    "useFreeCosmosDb": {
-      "type": "bool",
-      "defaultValue": false
-    },
-    "cosmosDbUsername": {
-      "type": "string",
-      "defaultValue": ""
-    },
-    "cosmosDbPassword": {
-      "type": "string",
-      "defaultValue": ""
+      "defaultValue": true
     }
   },
   "variables": {
@@ -135,27 +119,34 @@
               "value": "[toLower(format('{0}-{1}', parameters('aiEmbedModelName'), parameters('uniqueName')))]"
             },
             {
+              "name": "SystemMessage",
+              "value": "You are a helpful AI assistant. Respond in a friendly and professional tone."
+            },
+            {
               "name": "RequireEasyAuth",
               "value": "[if(parameters('requireEasyAuth'), 'true', 'false')]"
             },
             {
               "name": "ConnectionStrings__CosmosDB",
-              "value": "[reference(resourceId('Microsoft.DocumentDB/mongoClusters', parameters('cosmosDbName')), '2024-03-01-preview').connectionString]"
+              "value": ""
+            },
+            {
+              "name": "CosmosDB__DatabaseName",
+              "value": ""
             },
             {
               "name": "CosmosDB__Username",
-              "value": "[parameters('cosmosDbUsername')]"
+              "value": ""
             },
             {
               "name": "CosmosDB__Password",
-              "value": "[parameters('cosmosDbPassword')]"
+              "value": ""
             }
           ]
         }
       },
       "dependsOn": [
         "[resourceId('Microsoft.Web/serverfarms', variables('appServicePlanName'))]",
-        "[resourceId('Microsoft.DocumentDB/mongoClusters', parameters('cosmosDbName'))]",
         "[resourceId('Microsoft.CognitiveServices/accounts', parameters('openAiServiceName'))]"
       ]
     },
@@ -224,41 +215,6 @@
       "dependsOn": [
         "[resourceId('Microsoft.CognitiveServices/accounts/deployments', parameters('openAiServiceName'), toLower(format('{0}-{1}', parameters('aiChatModelName'), parameters('uniqueName'))))]",
         "[resourceId('Microsoft.CognitiveServices/accounts', parameters('openAiServiceName'))]"
-      ]
-    },
-    {
-      "condition": "[parameters('useFreeCosmosDb')]",
-      "type": "Microsoft.DocumentDB/mongoClusters",
-      "apiVersion": "2024-03-01-preview",
-      "name": "[parameters('cosmosDbName')]",
-      "location": "southindia",
-      "properties": {
-        "administratorLogin": "[parameters('cosmosDbUsername')]",
-        "administratorLoginPassword": "[parameters('cosmosDbPassword')]",
-        "serverVersion": "7.0",
-        "nodeGroupSpecs": [
-          {
-            "kind": "Shard",
-            "sku": "Free",
-            "diskSizeGB": 32,
-            "enableHa": false,
-            "nodeCount": 1
-          }
-        ],
-        "publicNetworkAccess": "Enabled"
-      }
-    },
-    {
-      "condition": "[parameters('useFreeCosmosDb')]",
-      "type": "Microsoft.DocumentDB/mongoClusters/firewallRules",
-      "apiVersion": "2024-03-01-preview",
-      "name": "[format('{0}/{1}', parameters('cosmosDbName'), 'AllowAllAzureServicesAndResourcesWithinAzureIps')]",
-      "properties": {
-        "startIpAddress": "0.0.0.0",
-        "endIpAddress": "0.0.0.0"
-      },
-      "dependsOn": [
-        "[resourceId('Microsoft.DocumentDB/mongoClusters', parameters('cosmosDbName'))]"
       ]
     }
   ]
