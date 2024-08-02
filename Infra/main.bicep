@@ -12,9 +12,11 @@ param aiChatModelSupportsImages bool = true
 param aiEmbedModelName string = 'text-embedding-ada-002'
 param aiEmbedModelVersion string = '2'
 param aiEmbedModelCapacity int = 120
-param requireEasyAuth bool = false
+param requireEasyAuth bool = true
+
 var appServicePlanName = toLower('BlazorAIChatPlan-${uniqueName}')
 var webSiteName = toLower('BlazorAIChat-${uniqueName}')
+
 
 resource appServicePlan 'Microsoft.Web/serverfarms@2020-06-01' = {
   name: appServicePlanName
@@ -57,8 +59,20 @@ resource appService 'Microsoft.Web/sites@2020-06-01' = {
           value: toLower('${aiEmbedModelName}-${uniqueName}')
         }
         {
+          name:'SystemMessage'
+          value:'You are a helpful AI assistant. Respond in a friendly and professional tone.'
+        }
+        {
           name: 'RequireEasyAuth'
           value: requireEasyAuth ? 'true' : 'false'
+        }
+        {
+          name: 'ConnectionStrings__CosmosDB'
+          value: ''
+        }
+        {
+          name: 'CosmosDB__DatabaseName'
+          value: ''
         }
       ]
     }
@@ -139,3 +153,4 @@ resource openAiEmbed 'Microsoft.CognitiveServices/accounts/deployments@2023-05-0
     openAiChat
   ]
 }
+

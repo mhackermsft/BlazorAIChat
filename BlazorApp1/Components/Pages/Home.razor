@@ -16,6 +16,7 @@
 @using System.Text
 @using System.Text.RegularExpressions
 @using Microsoft.SemanticKernel.Connectors.Sqlite
+@using Microsoft.SemanticKernel.Connectors.AzureCosmosDBMongoDB
 @using Microsoft.SemanticKernel.Embeddings
 @using Microsoft.SemanticKernel.Memory
 @using System.Text.Json
@@ -32,6 +33,14 @@
                 <div class="card-header">
                     <h4 class="card-title">Azure OpenAI Chat</h4>
                     <span class="badge bg-success ms-auto me-2 align-self-center">@userName</span>
+                    @if (string.IsNullOrEmpty(cosmosDbConn))
+                    {
+                        <span class="badge bg-info ms-2 align-self-center">SQLite Memory Store</span>
+                    }
+                    else
+                    {
+                        <span class="badge bg-info ms-2 align-self-center">Azure CosmosDB Memory Store</span>
+                    }
                     @if (userName != defaultUserName)
                     { 
                         <button class="btn btn-danger ms-2 align-self-center py-1 logout-button" onclick="document.location='/.auth/logout'">Logout</button>
@@ -88,8 +97,12 @@
     bool isResponding = false;
     bool stopResponding = false;
 
-    SqliteMemoryStore? memoryStore;
+    SqliteMemoryStore? sqlLiteMemoryStore;
+    AzureCosmosDBMongoDBMemoryStore? cosmosDBMemoryStore;
+
     SemanticTextMemory? semanticMemory;
+    int embedDimensions = 1536;
+    string cosmosDbConn = string.Empty;
 
     private ElementReference chatWindow;
     private InputFile? inputFile;
@@ -142,6 +155,8 @@
             var apiKey = Configuration["AzureOpenAIChatCompletion:ApiKey"] ?? string.Empty;
             var model = Configuration["AzureOpenAIChatCompletion:Model"] ?? string.Empty;
             var embedModel = Configuration["AzureOpenAIEmbedding:Model"] ?? string.Empty;
+            embedDimensions = int.Parse(Configuration["AzureOpenAIEmbedding:EmbeddingDimensions"] ?? "1536");
+            cosmosDbConn = Configuration["ConnectionStrings:CosmosDB"] ?? string.Empty;
             chatModelSupportsImages = bool.Parse(Configuration["AzureOpenAIChatCompletion:SupportsImages"] ?? "false");
             RequireEasyAuth = bool.Parse(Configuration["RequireEasyAuth"] ?? "false");
             systemMessage = Configuration["SystemMessage"] ?? systemMessage;
@@ -167,10 +182,21 @@
             kernel = builder.Build();
 
             chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
-            memoryStore = await SqliteMemoryStore.ConnectAsync("memory.sqlite");
-            semanticMemory = new SemanticTextMemory(memoryStore, kernel.GetRequiredService<ITextEmbeddingGenerationService>());
 
-            //Clear the chat history and set the system message
+            if (string.IsNullOrEmpty(cosmosDbConn))
+            {
+                sqlLiteMemoryStore = await SqliteMemoryStore.ConnectAsync("memory.sqlite"); 
+                semanticMemory = new SemanticTextMemory(sqlLiteMemoryStore, kernel.GetRequiredService<ITextEmbeddingGenerationService>());
+
+            }
+            else
+            {
+                AzureCosmosDBMongoDBConfig dBConfig = new AzureCosmosDBMongoDBConfig(embedDimensions);
+                cosmosDBMemoryStore = new AzureCosmosDBMongoDBMemoryStore(cosmosDbConn, "embeddings", dBConfig);
+                semanticMemory = new SemanticTextMemory(cosmosDBMemoryStore, kernel.GetRequiredService<ITextEmbeddingGenerationService>());
+            }
+
+             //Clear the chat history and set the system message
             internalClear();
         }
         catch (Exception ex)
@@ -202,7 +228,14 @@
             //if the user confirms, delete the memory store
             if (confirmed)
             {
-                await memoryStore!.DeleteCollectionAsync(userName);
+                if (string.IsNullOrEmpty(cosmosDbConn))
+                {
+                    await sqlLiteMemoryStore!.DeleteCollectionAsync(userName);
+                }
+                else
+                {
+                    await cosmosDBMemoryStore!.DeleteCollectionAsync(userName);
+                }
                 ShowAlert("All documents have been removed.", AlertTypeEnum.info);
             }
         }

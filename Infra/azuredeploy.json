@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.29.47.4906",
-      "templateHash": "6816946769357397933"
+      "templateHash": "11391290522270775437"
     }
   },
   "parameters": {
@@ -67,7 +67,7 @@
     },
     "requireEasyAuth": {
       "type": "bool",
-      "defaultValue": false
+      "defaultValue": true
     }
   },
   "variables": {
@@ -119,8 +119,20 @@
               "value": "[toLower(format('{0}-{1}', parameters('aiEmbedModelName'), parameters('uniqueName')))]"
             },
             {
+              "name": "SystemMessage",
+              "value": "You are a helpful AI assistant. Respond in a friendly and professional tone."
+            },
+            {
               "name": "RequireEasyAuth",
               "value": "[if(parameters('requireEasyAuth'), 'true', 'false')]"
+            },
+            {
+              "name": "ConnectionStrings__CosmosDB",
+              "value": ""
+            },
+            {
+              "name": "CosmosDB__DatabaseName",
+              "value": ""
             }
           ]
         }
