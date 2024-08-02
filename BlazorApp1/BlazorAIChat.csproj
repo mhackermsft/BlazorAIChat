@@ -11,11 +11,12 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="DocumentFormat.OpenXml" Version="3.0.2" />
+    <PackageReference Include="DocumentFormat.OpenXml" Version="3.1.0" />
     <PackageReference Include="MarkdownSharp" Version="2.0.5" />
     <PackageReference Include="Microsoft.AspNetCore.Components.Authorization" Version="8.0.7" />
-    <PackageReference Include="Microsoft.SemanticKernel" Version="1.16.1" />
-    <PackageReference Include="Microsoft.SemanticKernel.Connectors.Sqlite" Version="1.16.1-alpha" />
+    <PackageReference Include="Microsoft.SemanticKernel" Version="1.16.2" />
+    <PackageReference Include="Microsoft.SemanticKernel.Connectors.AzureCosmosDBMongoDB" Version="1.16.2-alpha" />
+    <PackageReference Include="Microsoft.SemanticKernel.Connectors.Sqlite" Version="1.16.2-alpha" />
     <PackageReference Include="PdfPig" Version="0.1.8" />
   </ItemGroup>
 
