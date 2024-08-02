@@ -82,7 +82,6 @@ The appsettings.json file has a few configuration parameters that must be set fo
 If you would like to use Cosmos DB in place of SQLite for memory storage, you must manually deploy an Azure Cosmos DB for MongoDB (vcore) instance and configure the following settings.
   - Specify the connection string to the Cosmos DB for MongoDB instance.
   - Specify a database name. This database should not already be created.
-  - Specify the admin username and password for the database.
 
 - **EasyAuth Configuration**: 
   - If utilizing EasyAuth with Azure App Service, it is recommended to set `RequireEasyAuth` to `true` to ensure that users are fully authenticated and not recognized as guests.
