@@ -66,9 +66,7 @@ The appsettings.json file has a few configuration parameters that must be set fo
   },
   "CosmosDB":
   {
-    "DatabaseName": "",
-    "Username": "",
-    "Password": ""
+    "DatabaseName": ""
   }
   ```
 
