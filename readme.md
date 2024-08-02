@@ -57,7 +57,8 @@ The appsettings.json file has a few configuration parameters that must be set fo
     "SupportsImages": false
   },
   "AzureOpenAIEmbedding": {
-    "Model": ""
+    "Model": "",
+    "Dimensions": 1536
   },
   "RequireEasyAuth": true,
   "SystemMessage" : "You are a helpful AI assistant. Respond in a friendly and professional tone.",
@@ -76,6 +77,7 @@ The appsettings.json file has a few configuration parameters that must be set fo
 
 - **AzureOpenAIEmbedding Configuration**: 
   - Specify the deployed embedding model you plan to use.
+  - If using Azure Cosmos DB for MongoDB as your knowledge store, you must provide the dimensions returned by the embedding model. For the `text-embedding-ada-002` model this is 1536.
   - Both the chat and embedding models are assumed to be accessed through the same Azure OpenAI endpoint and API key.
 
 - **Cosmos DB (optional)**:
