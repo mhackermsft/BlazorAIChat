@@ -74,15 +74,6 @@ resource appService 'Microsoft.Web/sites@2020-06-01' = {
           name: 'CosmosDB__DatabaseName'
           value: ''
         }
-        {
-          name: 'CosmosDB__Username'
-          value: ''
-        }
-        {
-          name: 'CosmosDB__Password'
-          value: ''
-        }
-
       ]
     }
   }
