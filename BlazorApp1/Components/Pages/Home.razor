@@ -4,9 +4,11 @@
 @inject IJSRuntime js
 @inject NavigationManager NavigationManager
 @inject AuthenticationStateProvider AuthenticationStateProvider
+@using Azure
+@using Azure.AI.DocumentIntelligence
+@using Azure.Storage.Blobs
 @using BlazorAIChat.Components.Shared
 @using Microsoft.AspNetCore.Components.Authorization
-
 @using DocumentFormat.OpenXml.Packaging
 @using DocumentFormat.OpenXml.Wordprocessing
 @using MarkdownSharp;
@@ -40,6 +42,14 @@
                     else
                     {
                         <span class="badge bg-info ms-2 align-self-center">Azure CosmosDB Memory Store</span>
+                    }
+                    @if(!string.IsNullOrEmpty(documentIntelligenceEndpoint) && !string.IsNullOrEmpty(documentIntelligenceApiKey))
+                    {
+                        <span class="badge bg-info ms-2 align-self-center">Document Intelligence Enabled</span>
+                    }
+                    @if(!string.IsNullOrEmpty(azureStorageConnectionString))
+                    {
+                        <span class="badge bg-info ms-2 align-self-center">Azure Storage Enabled</span>
                     }
                     @if (userName != defaultUserName)
                     { 
@@ -125,6 +135,10 @@
 
     string systemMessage = "You are a helpful AI assistant. Respond in a friendly and professional tone.";
 
+    string documentIntelligenceEndpoint= string.Empty;
+    string documentIntelligenceApiKey = string.Empty;
+    string azureStorageConnectionString = string.Empty;
+
     protected override async Task OnInitializedAsync()
     {
         ClaimsPrincipal? user = null;
@@ -150,7 +164,7 @@
 
         try
         {
-            // Get the model, endpoint and API key from appsettings.json
+            // Get settings from appsettings.json or App Service configuration
             var endpoint = Configuration["AzureOpenAIChatCompletion:Endpoint"] ?? string.Empty;
             var apiKey = Configuration["AzureOpenAIChatCompletion:ApiKey"] ?? string.Empty;
             var model = Configuration["AzureOpenAIChatCompletion:Model"] ?? string.Empty;
@@ -160,6 +174,9 @@
             chatModelSupportsImages = bool.Parse(Configuration["AzureOpenAIChatCompletion:SupportsImages"] ?? "false");
             RequireEasyAuth = bool.Parse(Configuration["RequireEasyAuth"] ?? "false");
             systemMessage = Configuration["SystemMessage"] ?? systemMessage;
+            documentIntelligenceEndpoint = Configuration["DocumentIntelligence:Endpoint"] ?? string.Empty;
+            documentIntelligenceApiKey = Configuration["DocumentIntelligence:ApiKey"] ?? string.Empty;
+            azureStorageConnectionString = Configuration["ConnectionStrings:AzureStorage"] ?? string.Empty;
 
             //If the user is not authenticated and guests are not allowed, then redirect to the login page
             if ((user?.Identity?.IsAuthenticated == false || userName == defaultUserName) && RequireEasyAuth)
@@ -196,7 +213,7 @@
                 semanticMemory = new SemanticTextMemory(cosmosDBMemoryStore, kernel.GetRequiredService<ITextEmbeddingGenerationService>());
             }
 
-             //Clear the chat history and set the system message
+            //Clear the chat history and set the system message
             internalClear();
         }
         catch (Exception ex)
@@ -228,6 +245,9 @@
             //if the user confirms, delete the memory store
             if (confirmed)
             {
+                //If an Azure Storage connection string has been provided, delete the files from Azure Blob Storage
+                await DeleteFilesFromBlobForUser();
+
                 if (string.IsNullOrEmpty(cosmosDbConn))
                 {
                     await sqlLiteMemoryStore!.DeleteCollectionAsync(userName);
@@ -267,7 +287,7 @@
                 if (uploadImageByteArray==null)
                 {
                     history.AddUserMessage(message);
-                    
+
                 }
                 else
                 {
@@ -417,6 +437,10 @@
             await stream.CopyToAsync(memoryStream);
             memoryStream.Position = 0;
 
+            //This will save the file to blob storage if a connection string is provided
+            await SaveFileToBlob(memoryStream, selectedFile.Name);
+
+            //Check to see how we need to process the files.
             if (fileName.EndsWith(".docx"))
             {
                 await ProcessDocxFile(memoryStream);
@@ -457,6 +481,107 @@
         }
     }
 
+    private async Task SaveFileToBlob(MemoryStream memoryStream, string filename)
+    {
+        //If a blob connection string has been supplied, try to save the file to Azure Blob Storage
+        try
+        {
+            if (!string.IsNullOrEmpty(azureStorageConnectionString))
+            {
+
+                // Create a BlobServiceClient object which will be used to create a container client
+                BlobServiceClient blobServiceClient = new BlobServiceClient(azureStorageConnectionString);
+
+                // Create the container and return a container client object
+                string container= ConvertToValidContainerName(userName);
+                BlobContainerClient containerClient = blobServiceClient.GetBlobContainerClient(container);
+                await containerClient.CreateIfNotExistsAsync();
+
+                // Ensure the filename is valid for a blob
+                filename = ConvertToValidBlobName(filename);
+
+                // Get a reference to a blob
+                BlobClient blobClient = containerClient.GetBlobClient(filename);
+
+                // Upload the file
+                blobClient.Upload(memoryStream, true);
+
+                ShowAlert($"The file {filename} has been uploaded to Azure Blob Storage.", AlertTypeEnum.success);
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowAlert($"An error occurred while saving the file to Azure Blob Storage. {ex.Message}", AlertTypeEnum.danger);
+
+        }
+    }
+
+    private async Task DeleteFilesFromBlobForUser()
+    {
+        try
+        {
+            if (!string.IsNullOrEmpty(azureStorageConnectionString))
+            {
+                // Create a BlobServiceClient object which will be used to create a container client
+                BlobServiceClient blobServiceClient = new BlobServiceClient(azureStorageConnectionString);
+
+                // Create the container and return a container client object
+                string container = ConvertToValidContainerName(userName);
+                BlobContainerClient containerClient = blobServiceClient.GetBlobContainerClient(container);
+
+                // Get a reference to a blob
+                await containerClient.DeleteIfExistsAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowAlert($"An error occurred while deleting the files from Azure Blob Storage. {ex.Message}", AlertTypeEnum.danger);
+        }
+    }
+
+    //Generate valid blob names based on original filename
+    private string ConvertToValidBlobName(string filename)
+    {
+        // Replace invalid characters with a hyphen
+        string validBlobName = Regex.Replace(filename, @"[^a-zA-Z0-9\-]", "-");
+
+        // Ensure the blob name is within the allowed length (1-1024 characters)
+        if (validBlobName.Length > 1024)
+        {
+            validBlobName = validBlobName.Substring(0, 1024);
+        }
+
+        return validBlobName;
+    }
+
+    //Generate valid container names based on the passed in name.
+    private string ConvertToValidContainerName(string name)
+    {
+        // Convert to lowercase
+        string validContainerName = name.ToLower();
+
+        // Replace invalid characters with a hyphen
+        validContainerName = Regex.Replace(validContainerName, @"[^a-z0-9\-]", "-");
+
+        // Remove consecutive dashes
+        validContainerName = Regex.Replace(validContainerName, @"-+", "-");
+
+        // Trim dashes from the start and end
+        validContainerName = validContainerName.Trim('-');
+
+        // Ensure the container name is within the allowed length (3-63 characters)
+        if (validContainerName.Length < 3)
+        {
+            validContainerName = validContainerName.PadRight(3, 'a'); // Pad with 'a' to meet minimum length
+        }
+        else if (validContainerName.Length > 63)
+        {
+            validContainerName = validContainerName.Substring(0, 63);
+        }
+
+        return validContainerName;
+    }
+
     private void ProcessImage(MemoryStream memoryStream, string filename)
     {
         try
@@ -494,6 +619,8 @@
 
     private async Task ProcessDocxFile(MemoryStream memoryStream)
     {
+
+        //Use OpenXML SDK to process the document's paragraphs and save them to the memory store
         using (WordprocessingDocument wordDoc = WordprocessingDocument.Open(memoryStream, false))
         {
             Body? body = wordDoc.MainDocumentPart?.Document.Body;
@@ -509,29 +636,33 @@
                 }
             }
         }
-
     }
-
- 
 
     private async Task ProcessPdfFile(MemoryStream memoryStream)
     {
         try
         {
-            using var pdfDocument = PdfDocument.Open(memoryStream);
-            foreach (var page in pdfDocument.GetPages())
+            if (string.IsNullOrEmpty(documentIntelligenceEndpoint) || string.IsNullOrEmpty(documentIntelligenceApiKey))
             {
-                string pageText = page.Text;
-                var paragraphs = SplitIntoParagraphs(pageText);
-                foreach (var paragraph in paragraphs)
+                using var pdfDocument = PdfDocument.Open(memoryStream);
+                foreach (var page in pdfDocument.GetPages())
                 {
-                    if (!string.IsNullOrEmpty(paragraph) && semanticMemory != null)
+                    string pageText = page.Text;
+                    var paragraphs = SplitIntoParagraphs(pageText);
+                    foreach (var paragraph in paragraphs)
                     {
-                        await semanticMemory.SaveInformationAsync(userName, paragraph, Guid.NewGuid().ToString());
+                        if (!string.IsNullOrEmpty(paragraph) && semanticMemory != null)
+                        {
+                            await semanticMemory.SaveInformationAsync(userName, paragraph, Guid.NewGuid().ToString());
+                        }
                     }
                 }
             }
-
+            else
+            {
+                //Use the Document Intelligence API via SDK to process the document's paragraphs and save them to the memory store
+                await ProcessDocWithDocIntelligence(memoryStream);
+            }
         }
         catch (Exception ex)
         {
@@ -557,7 +688,7 @@
                     }
                 }
             }
- 
+
         }
         catch (Exception ex)
         {
@@ -566,6 +697,40 @@
         }
     }
 
+
+    private async Task ProcessDocWithDocIntelligence(MemoryStream memoryStream)
+    {
+        if (memoryStream == null) throw new ArgumentNullException(nameof(memoryStream));
+        if (string.IsNullOrEmpty(documentIntelligenceEndpoint)) throw new ArgumentNullException(nameof(documentIntelligenceEndpoint));
+        if (string.IsNullOrEmpty(documentIntelligenceApiKey)) throw new ArgumentNullException(nameof(documentIntelligenceApiKey));
+        if (semanticMemory == null) throw new ArgumentNullException(nameof(semanticMemory));
+
+        try
+        {
+            var client = new DocumentIntelligenceClient(new Uri(documentIntelligenceEndpoint), new AzureKeyCredential(documentIntelligenceApiKey));
+            memoryStream.Position = 0;
+            var content = new AnalyzeDocumentContent()
+                {
+                    Base64Source = await BinaryData.FromStreamAsync(memoryStream)
+                };
+
+            var operation = await client.AnalyzeDocumentAsync(WaitUntil.Completed, "prebuilt-layout", content);
+            var result = operation.Value;
+
+            foreach (DocumentParagraph paragraph in result.Paragraphs)
+            {
+                if (!string.IsNullOrEmpty(paragraph.Content))
+                {
+                    await semanticMemory.SaveInformationAsync(userName, paragraph.Content, Guid.NewGuid().ToString());
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowAlert($"An error occurred processing the document with Azure Document Intelligence: {ex.Message}", AlertTypeEnum.danger);
+            Console.WriteLine($"An error occurred processing the document with Azure Document Intelligence: {ex.Message}");
+        }
+    }
 
 
     private List<string> SplitIntoParagraphs(string text)
