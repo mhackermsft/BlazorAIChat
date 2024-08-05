@@ -6,7 +6,10 @@
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @using Azure
 @using Azure.AI.DocumentIntelligence
+@using Azure.Search.Documents.Indexes
+@using Azure.Search.Documents.Indexes.Models
 @using Azure.Storage.Blobs
+@using Azure.Storage.Blobs.Models
 @using BlazorAIChat.Components.Shared
 @using Microsoft.AspNetCore.Components.Authorization
 @using DocumentFormat.OpenXml.Packaging
@@ -50,6 +53,11 @@
                     @if(!string.IsNullOrEmpty(azureStorageConnectionString))
                     {
                         <span class="badge bg-info ms-2 align-self-center">Azure Storage Enabled</span>
+
+                        @if(!string.IsNullOrEmpty(aiSearchEndpoint) && !string.IsNullOrEmpty(aiSearchApiKey))
+                        {
+                            <span class="badge bg-info ms-2 align-self-center">Azure AI Search Enabled</span>
+                        }
                     }
                     @if (userName != defaultUserName)
                     { 
@@ -138,6 +146,8 @@
     string documentIntelligenceEndpoint= string.Empty;
     string documentIntelligenceApiKey = string.Empty;
     string azureStorageConnectionString = string.Empty;
+    string aiSearchEndpoint = string.Empty;
+    string aiSearchApiKey = string.Empty;
 
     protected override async Task OnInitializedAsync()
     {
@@ -177,6 +187,8 @@
             documentIntelligenceEndpoint = Configuration["DocumentIntelligence:Endpoint"] ?? string.Empty;
             documentIntelligenceApiKey = Configuration["DocumentIntelligence:ApiKey"] ?? string.Empty;
             azureStorageConnectionString = Configuration["ConnectionStrings:AzureStorage"] ?? string.Empty;
+            aiSearchEndpoint = Configuration["AzureAISearch:Endpoint"] ?? string.Empty;
+            aiSearchApiKey = Configuration["AzureAISearch:ApiKey"] ?? string.Empty;
 
             //If the user is not authenticated and guests are not allowed, then redirect to the login page
             if ((user?.Identity?.IsAuthenticated == false || userName == defaultUserName) && RequireEasyAuth)
@@ -435,21 +447,23 @@
             using var stream = selectedFile.OpenReadStream(maxAllowedSize: 1073741824); // 1GB
             using var memoryStream = new MemoryStream();
             await stream.CopyToAsync(memoryStream);
-            memoryStream.Position = 0;
 
             //This will save the file to blob storage if a connection string is provided
             await SaveFileToBlob(memoryStream, selectedFile.Name);
 
-            //Check to see how we need to process the files.
-            if (fileName.EndsWith(".docx"))
+            //Check to see if we need to use Azure AI Search
+            bool useAzureAISearch = !string.IsNullOrEmpty(aiSearchApiKey) && !string.IsNullOrEmpty(aiSearchEndpoint);
+
+            //Check to see how we need to process the files. If we are using Azure AI Search, then we will not process the PDF, DOCX, or TXT files
+            if (fileName.EndsWith(".docx") && !useAzureAISearch)
             {
                 await ProcessDocxFile(memoryStream);
             }
-            else if (fileName.EndsWith(".pdf"))
+            else if (fileName.EndsWith(".pdf") && !useAzureAISearch)
             {
                 await ProcessPdfFile(memoryStream);
             }
-            else if (fileName.EndsWith(".txt"))
+            else if (fileName.EndsWith(".txt") && !useAzureAISearch)
             {
                 await ProcessTxtFile(memoryStream);
             }
@@ -457,14 +471,7 @@
             {
                 ProcessImage(memoryStream, fileName);
             }
-            else
-            {
-                string alertMessage = chatModelSupportsImages
-                    ? "Please upload a PDF, DOCX, TXT, or image file."
-                    : "Please upload a PDF, DOCX, or TXT file. Image uploads are not supported.";
-                ShowAlert($"The file {selectedFile.Name} is not a supported file type. {alertMessage}", AlertTypeEnum.warning);
-                return;
-            }
+
 
             if (inputFile != null)
             {
@@ -488,6 +495,7 @@
         {
             if (!string.IsNullOrEmpty(azureStorageConnectionString))
             {
+                memoryStream.Position = 0;
 
                 // Create a BlobServiceClient object which will be used to create a container client
                 BlobServiceClient blobServiceClient = new BlobServiceClient(azureStorageConnectionString);
@@ -506,7 +514,9 @@
                 // Upload the file
                 blobClient.Upload(memoryStream, true);
 
-                ShowAlert($"The file {filename} has been uploaded to Azure Blob Storage.", AlertTypeEnum.success);
+                //If the AI Search endpoint and API key are provided, create a data source for the uploaded file if it doesn't already exist
+                await CreateAISearchDataSource(container);
+
             }
         }
         catch (Exception ex)
@@ -529,8 +539,22 @@
                 string container = ConvertToValidContainerName(userName);
                 BlobContainerClient containerClient = blobServiceClient.GetBlobContainerClient(container);
 
-                // Get a reference to a blob
-                await containerClient.DeleteIfExistsAsync();
+                // Check if the container exists
+                if (await containerClient.ExistsAsync())
+                {
+                    // List all blobs in the container
+                    await foreach (BlobItem blobItem in containerClient.GetBlobsAsync())
+                    {
+                        // Get a reference to a blob
+                        BlobClient blobClient = containerClient.GetBlobClient(blobItem.Name);
+
+                        // Delete the blob
+                        await blobClient.DeleteIfExistsAsync();
+                    }
+
+                    // If the AI Search endpoint and API key are provided, delete the data source for the uploaded file
+                    await DeleteAISearchDataSource(container);
+                }
             }
         }
         catch (Exception ex)
@@ -538,6 +562,8 @@
             ShowAlert($"An error occurred while deleting the files from Azure Blob Storage. {ex.Message}", AlertTypeEnum.danger);
         }
     }
+
+
 
     //Generate valid blob names based on original filename
     private string ConvertToValidBlobName(string filename)
@@ -586,7 +612,6 @@
     {
         try
         {
-
             //set the mime type of the image to the uploadImageType string based on the filename
             if (filename.EndsWith(".jpg") || filename.EndsWith(".jpeg"))
             {
@@ -619,22 +644,32 @@
 
     private async Task ProcessDocxFile(MemoryStream memoryStream)
     {
-
-        //Use OpenXML SDK to process the document's paragraphs and save them to the memory store
-        using (WordprocessingDocument wordDoc = WordprocessingDocument.Open(memoryStream, false))
+        try
         {
-            Body? body = wordDoc.MainDocumentPart?.Document.Body;
-            if (body != null)
+            //Ensure we are at the start of the memoryStream
+            memoryStream.Position = 0;
+
+            //Use OpenXML SDK to process the document's paragraphs and save them to the memory store
+            using (WordprocessingDocument wordDoc = WordprocessingDocument.Open(memoryStream, false))
             {
-                var paragraphs = body.Elements<Paragraph>();
-                foreach (var paragraph in paragraphs)
+                Body? body = wordDoc.MainDocumentPart?.Document.Body;
+                if (body != null)
                 {
-                    if (!string.IsNullOrEmpty(paragraph.InnerText) && semanticMemory != null)
+                    var paragraphs = body.Elements<Paragraph>();
+                    foreach (var paragraph in paragraphs)
                     {
-                        await semanticMemory!.SaveInformationAsync(userName, paragraph.InnerText, Guid.NewGuid().ToString());
+                        if (!string.IsNullOrEmpty(paragraph.InnerText) && semanticMemory != null)
+                        {
+                            await semanticMemory!.SaveInformationAsync(userName, paragraph.InnerText, Guid.NewGuid().ToString());
+                        }
                     }
                 }
             }
+        }
+        catch (Exception ex)
+        {
+            ShowAlert($"An error occurred while processing the DOCX document. {ex.Message}", AlertTypeEnum.danger);
+            Console.WriteLine($"ProcessDocxFile error: {ex.Message}");
         }
     }
 
@@ -642,6 +677,10 @@
     {
         try
         {
+            //Ensure we are at the start of the memoryStream
+            memoryStream.Position = 0;
+
+
             if (string.IsNullOrEmpty(documentIntelligenceEndpoint) || string.IsNullOrEmpty(documentIntelligenceApiKey))
             {
                 using var pdfDocument = PdfDocument.Open(memoryStream);
@@ -676,6 +715,10 @@
     {
         try
         {
+            //Ensure we are at the start of the memoryStream
+            memoryStream.Position = 0;
+
+
             using (StreamReader reader = new StreamReader(memoryStream))
             {
                 string text = await reader.ReadToEndAsync();
@@ -707,8 +750,10 @@
 
         try
         {
-            var client = new DocumentIntelligenceClient(new Uri(documentIntelligenceEndpoint), new AzureKeyCredential(documentIntelligenceApiKey));
+            //Ensure we are at the start of the memoryStream
             memoryStream.Position = 0;
+
+            var client = new DocumentIntelligenceClient(new Uri(documentIntelligenceEndpoint), new AzureKeyCredential(documentIntelligenceApiKey));
             var content = new AnalyzeDocumentContent()
                 {
                     Base64Source = await BinaryData.FromStreamAsync(memoryStream)
@@ -754,6 +799,73 @@
         }
         return paragraphs;
     }
+
+    private async Task CreateAISearchDataSource(string containerName)
+    {
+        try
+        {
+            if (!string.IsNullOrEmpty(aiSearchEndpoint) && !string.IsNullOrEmpty(aiSearchApiKey))
+            {
+                // Create a new Azure AI Search data source
+                var client = new SearchIndexerClient(new Uri(aiSearchEndpoint), new AzureKeyCredential(aiSearchApiKey));
+                var dataSourceName = $"azureblob-{containerName}";
+
+                // Check if the data source already exists
+                try
+                {
+                    var existingDataSource = await client.GetDataSourceConnectionAsync(dataSourceName);
+                    if (existingDataSource != null)
+                    {
+                        Console.WriteLine($"Data source '{dataSourceName}' already exists.");
+                        return;
+                    }
+                }
+                catch (RequestFailedException ex) when (ex.Status == 404)
+                {
+                    // Data source does not exist, proceed to create it.
+                    var dataSource = new SearchIndexerDataSourceConnection(
+                        name: dataSourceName,
+                        type: SearchIndexerDataSourceType.AzureBlob,
+                        connectionString: azureStorageConnectionString,
+                        container: new SearchIndexerDataContainer(containerName))
+                        {
+                            // Configure change detection policy
+                            DataChangeDetectionPolicy = new HighWaterMarkChangeDetectionPolicy("metadata_storage_last_modified") // Use the required column
+                        };
+
+                    await client.CreateOrUpdateDataSourceConnectionAsync(dataSource);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowAlert($"An error occurred while creating the Azure AI Search data source. {ex.Message}", AlertTypeEnum.danger);
+            Console.WriteLine($"CreateAISearchDataSource error: {ex.Message}");
+        }
+    }
+
+    private async Task DeleteAISearchDataSource(string containerName)
+    {
+        try
+        {
+            if (!string.IsNullOrEmpty(aiSearchEndpoint) && !string.IsNullOrEmpty(aiSearchApiKey))
+            {
+                var client = new SearchIndexerClient(new Uri(aiSearchEndpoint), new AzureKeyCredential(aiSearchApiKey));
+                await client.DeleteDataSourceConnectionAsync($"azureblob-{containerName}");
+            }
+        }
+        catch (RequestFailedException ex) when (ex.Status == 404)
+        {
+            // Data source not found, handle gracefully.  This is not a critical error.
+            Console.WriteLine($"Data source not found: {ex.Message}");
+        }
+        catch (Exception ex)
+        {
+            ShowAlert($"An error occurred while deleting the Azure AI Search data source. {ex.Message}", AlertTypeEnum.danger);
+            Console.WriteLine($"DeleteAISearchDataSource error: {ex.Message}");
+        }
+    }
+
 
     private void ShowAlert(string message, AlertTypeEnum alertType= AlertTypeEnum.info)
     {
