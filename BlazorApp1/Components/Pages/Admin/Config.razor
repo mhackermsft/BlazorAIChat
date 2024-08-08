@@ -1,0 +1,67 @@
+﻿@page "/admin/config"
+@attribute [Authorize(Roles = nameof(UserRoles.Admin))]
+@rendermode InteractiveServer
+@inject AIChatDBContext DbContext
+@inject NavigationManager NavigationManager
+@using BlazorAIChat.Models
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.EntityFrameworkCore
+
+<div class="admin-container">
+    <h3 class="mb-4">Config</h3>
+
+    <div class="row mb-3">
+        <div class="col-md-4">
+            <div class="form-group">
+                <label for="expirationDays">Account expiration days: (0 for no expiration)</label>
+                <InputNumber id="expirationDays" class="form-control" @bind-Value="config.ExpirationDays" />
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-3">
+        <div class="col-md-4">
+            <div class="form-group">
+                <label for="accountApprovals">Require Account Approvals:</label>
+                <InputCheckbox id="accountApprovals" class="form-check-input" @bind-Value="config.RequireAccountApprovals" />
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-3">
+        <div class="col-md-12">
+            <button class="btn btn-primary" @onclick="Save">Save</button> <button class="btn btn-secondary" @onclick="NavigateToAdmin">Back</button>
+        </div>
+    </div>
+</div>
+
+@code {
+    Models.Config config = new Models.Config() { Id=Guid.Empty};
+
+    protected override async Task OnInitializedAsync()
+    {
+        var result = await DbContext.Config.FirstOrDefaultAsync();
+        if (result != null)
+            config = result;
+    }
+
+    private async void Save()
+    {
+        if (config.Id == Guid.Empty)
+        {
+            config.Id = Guid.NewGuid();
+            await DbContext.Config.AddAsync(config);
+        }
+        else
+        {
+            DbContext.Config.Update(config);
+        }
+        await DbContext.SaveChangesAsync();
+    }
+
+    private void NavigateToAdmin()
+    {
+        NavigationManager.NavigateTo("/admin");
+    }
+
+}
