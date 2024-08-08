@@ -6,10 +6,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
 
-  <ItemGroup>
-    <None Remove="Components\Pages\Home.razor.css" />
-    <None Remove="memory.sqlite" />
-  </ItemGroup>
+	<ItemGroup>
+		<None Remove="memory.sqlite" />
+	</ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Azure.AI.DocumentIntelligence" Version="1.0.0-beta.2" />
