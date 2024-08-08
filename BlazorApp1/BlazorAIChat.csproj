@@ -12,10 +12,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="Components\Pages\Home.razor.css" />
-  </ItemGroup>
-
-  <ItemGroup>
+    <PackageReference Include="Azure.AI.DocumentIntelligence" Version="1.0.0-beta.2" />
+    <PackageReference Include="Azure.Search.Documents" Version="11.6.0" />
+    <PackageReference Include="Azure.Storage.Blobs" Version="12.21.1" />
     <PackageReference Include="DocumentFormat.OpenXml" Version="3.1.0" />
     <PackageReference Include="MarkdownSharp" Version="2.0.5" />
     <PackageReference Include="Microsoft.AspNetCore.Components.Authorization" Version="8.0.7" />
