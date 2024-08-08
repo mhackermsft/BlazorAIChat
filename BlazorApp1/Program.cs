@@ -1,18 +1,28 @@
 using BlazorAIChat;
+using BlazorAIChat.Authentication;
 using BlazorAIChat.Components;
-using Microsoft.AspNetCore.Components.Authorization;
-using Microsoft.AspNetCore.Components.Server;
+using BlazorAIChat.Services;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Http.Features;
+using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
+
+//Add SQLite database context, used with EF for config and user authorization data.
+builder.Services.AddDbContext<AIChatDBContext>();
+builder.Services.AddScoped<UserService>();
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents()
     .AddCircuitOptions(options => options.DetailedErrors = true);
 
-builder.Services.AddScoped<AuthenticationStateProvider, ServerAuthenticationStateProvider>();
+builder.Services.AddCascadingAuthenticationState();
 
+builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+    .AddCookie();
+
+builder.Services.AddAuthorizationCore();
 
 builder.Services.Configure<FormOptions>(options =>
 {
@@ -21,8 +31,15 @@ builder.Services.Configure<FormOptions>(options =>
 
 var app = builder.Build();
 
-//Add easy auth middleware
-app.UseMiddleware<EasyAuthMiddleware>();
+//setup EF database and migrate to latest version
+using (var scope = app.Services.CreateScope())
+{
+    var services = scope.ServiceProvider;
+    var context = services.GetRequiredService<AIChatDBContext>();
+    context.Database.Migrate();
+}
+
+
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
@@ -36,6 +53,13 @@ app.UseHttpsRedirection();
 
 app.UseStaticFiles();
 app.UseAntiforgery();
+
+app.UseAuthentication();
+
+//Add easy auth middleware
+app.UseMiddleware<EasyAuthMiddleware>();
+
+app.UseAuthorization();
 
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();

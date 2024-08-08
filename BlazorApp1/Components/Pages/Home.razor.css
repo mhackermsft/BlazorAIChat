@@ -1,0 +1,22 @@
+﻿/* Ensure the chat window is scrollable */
+.chat-window {
+    max-height: 100%;
+    overflow-y: auto;
+}
+
+.alert-top-full-width {
+    width: 100%;
+    position: absolute !important;
+    top: 0;
+    left: 0;
+    margin-bottom: 0;
+    z-index: 1000; /* Ensure it overlays other content */
+    height: auto; /* Adjust height as needed */
+    line-height: normal; /* Adjust line height as needed */
+}
+
+.right-buttons {
+    position:absolute;
+    right: 10px;
+    top: 10px;
+}

@@ -1,0 +1,89 @@
+﻿@page "/userProfile"
+@rendermode InteractiveServer
+@using BlazorAIChat.Models
+@using BlazorAIChat.Utils
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@attribute [Authorize]
+@inject NavigationManager NavigationManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject AIChatDBContext dbContext
+
+@if (currentUser!=null)
+{
+    <div class="admin-container">
+        <div class="card mt-3" style="max-width:700px">
+            <div class="card-header">
+                <h4>User Profile</h4>
+            </div>
+            <div class="card-body">
+                <div class="form-group">
+                    <label>Name:</label>
+                    <InputText class="form-control" @bind-Value="currentUser.Name" />
+                </div>
+                <div class="form-group">
+                    <label>Email:</label>
+                    <InputText class="form-control" @bind-Value="currentUser.Email" />
+                </div>
+                <div class="form-group">
+                    <label>Role:</label>
+                    <input type="text" class="form-control" value="@Enum.GetName(currentUser.Role)" disabled />
+                </div>
+                <div class="form-group">
+                    <label>Requested:</label>
+                    <input type="text" class="form-control" value="@currentUser.DateRequested.ToShortDateString()" disabled />
+                </div>
+                <div class="form-group">
+                    <label>Approved:</label>
+                    <input type="text" class="form-control" value="@(currentUser.DateApproved.HasValue?currentUser.DateApproved.Value.ToShortDateString():string.Empty)" disabled="true" />
+                </div>
+                <button type="button" class="btn btn-primary" @onclick="SaveChanges">Save</button>
+                <button type="button" class="btn btn-secondary" @onclick="Back">Back</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+
+
+    User? currentUser =null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var userPrincipal = authState.User;
+            if (userPrincipal.Identity?.IsAuthenticated == true)
+            {
+                currentUser = UserUtils.ConvertPrincipalToUser(userPrincipal);
+            }
+
+            if (currentUser==null)
+            {
+                NavigationManager.NavigateTo("/");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Initialization error: {ex.Message}");
+        }
+
+    }
+
+    private async Task SaveChanges()
+    {
+        if (currentUser != null && !string.IsNullOrEmpty(currentUser.Id))
+        {
+            dbContext.Update(currentUser);
+            await dbContext.SaveChangesAsync();
+            StateHasChanged();
+        }
+    }
+
+    private void Back()
+    {
+        NavigationManager.NavigateTo("/");
+    }
+}
