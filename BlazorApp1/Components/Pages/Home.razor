@@ -526,7 +526,7 @@ else
                 BlobServiceClient blobServiceClient = new BlobServiceClient(azureStorageConnectionString);
 
                 // Create the container and return a container client object
-                string container= ConvertToValidContainerName(userName);
+                string container = ConvertToValidContainerName(currentUser.Id);
                 BlobContainerClient containerClient = blobServiceClient.GetBlobContainerClient(container);
                 await containerClient.CreateIfNotExistsAsync();
 
@@ -561,7 +561,7 @@ else
                 BlobServiceClient blobServiceClient = new BlobServiceClient(azureStorageConnectionString);
 
                 // Create the container and return a container client object
-                string container = ConvertToValidContainerName(userName);
+                string container = ConvertToValidContainerName(currentUser.Id);
                 BlobContainerClient containerClient = blobServiceClient.GetBlobContainerClient(container);
 
                 // Check if the container exists
@@ -685,7 +685,7 @@ else
                     {
                         if (!string.IsNullOrEmpty(paragraph.InnerText) && semanticMemory != null)
                         {
-                            await semanticMemory!.SaveInformationAsync(userName, paragraph.InnerText, Guid.NewGuid().ToString());
+                            await semanticMemory!.SaveInformationAsync(currentUser.Id, paragraph.InnerText, Guid.NewGuid().ToString());
                         }
                     }
                 }
@@ -717,7 +717,7 @@ else
                     {
                         if (!string.IsNullOrEmpty(paragraph) && semanticMemory != null)
                         {
-                            await semanticMemory.SaveInformationAsync(userName, paragraph, Guid.NewGuid().ToString());
+                            await semanticMemory.SaveInformationAsync(currentUser.Id, paragraph, Guid.NewGuid().ToString());
                         }
                     }
                 }
@@ -791,7 +791,7 @@ else
             {
                 if (!string.IsNullOrEmpty(paragraph.Content))
                 {
-                    await semanticMemory.SaveInformationAsync(userName, paragraph.Content, Guid.NewGuid().ToString());
+                    await semanticMemory.SaveInformationAsync(currentUser.Id, paragraph.Content, Guid.NewGuid().ToString());
                 }
             }
         }
