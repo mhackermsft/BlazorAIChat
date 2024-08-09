@@ -38,8 +38,20 @@
         public bool DoesUserNeedToRequestAccess(User user, Config config, bool requireEasyAuth) =>
             user.Role == UserRoles.Guest && requireEasyAuth && userPrincipal?.Identity?.IsAuthenticated == true && config.RequireAccountApprovals;
 
-        public bool IsUserAccountExpired(User user, Config config, bool requireEasyAuth) =>
-            user.DateApproved != null && user.Role == UserRoles.User && requireEasyAuth && config.RequireAccountApprovals && user.DateApproved.Value.AddDays(config.ExpirationDays) > DateTime.Now;
+        public bool IsUserAccountExpired(User user, Config config, bool requireEasyAuth)
+        {
+            if (user.Role == UserRoles.Admin)
+            {
+                return false;
+            }
+
+            if (config.ExpirationDays == 0)
+            {
+                return false;
+            }
+
+            return user.DateApproved != null && user.Role == UserRoles.User && requireEasyAuth && config.RequireAccountApprovals && user.DateApproved.Value.AddDays(config.ExpirationDays) <= DateTime.Now;
+        }
     }
 
 }
