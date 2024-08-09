@@ -171,7 +171,6 @@ else
 
     bool RequireEasyAuth = false;
 
-    ClaimsPrincipal? userPrincipal = null;
     User currentUser = new User();
 
     private string alertMessage { get; set; } = string.Empty;
@@ -180,7 +179,6 @@ else
     string clearCancelText = "Clear";
 
     const long maxFileSizeBytes = 1073741824; // 1GB
-    const string defaultUserName = "Guest User";
     string welcomeMessage = string.Empty;
 
     bool chatModelSupportsImages = false;
@@ -199,12 +197,7 @@ else
         try
         {
             currentUser = await userService.GetCurrentUserAsync();
-            if (userPrincipal?.Identity?.IsAuthenticated == null && RequireEasyAuth)
-            {
-                showNeedsConfigure = true;
-                StateHasChanged();
-                return;
-            }
+
         }
         catch (Exception ex)
         {
@@ -228,6 +221,14 @@ else
             azureStorageConnectionString = Configuration["ConnectionStrings:AzureStorage"] ?? string.Empty;
             aiSearchEndpoint = Configuration["AzureAISearch:Endpoint"] ?? string.Empty;
             aiSearchApiKey = Configuration["AzureAISearch:ApiKey"] ?? string.Empty;
+
+            //Verify if the App Service needs configuration.
+            if (currentUser.Id=="Guest User" && RequireEasyAuth)
+            {
+                showNeedsConfigure = true;
+                StateHasChanged();
+                return;
+            }
 
             //Get app config data
             var dbConfig = dbContext.Config.FirstOrDefault();
