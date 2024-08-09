@@ -38,7 +38,7 @@
 
 <PageTitle>Azure Open AI Chat Demo</PageTitle>
 
-@if (userPrincipal?.Identity?.IsAuthenticated == null && RequireEasyAuth)
+@if (showNeedsConfigure)
 {
     <div class="d-flex justify-content-center align-items-center vh-100">
         <div class="card" style="max-width: 700px; width: 100%;">
@@ -154,6 +154,7 @@ else
     private ChatHistory history = new ChatHistory();
     Markdown md = new Markdown();
 
+    bool showNeedsConfigure = false;
     bool isFileInputDisabled=false;
     bool isResponding = false;
     bool stopResponding = false;
@@ -198,6 +199,12 @@ else
         try
         {
             currentUser = await userService.GetCurrentUserAsync();
+            if (userPrincipal?.Identity?.IsAuthenticated == null && RequireEasyAuth)
+            {
+                showNeedsConfigure = true;
+                StateHasChanged();
+                return;
+            }
         }
         catch (Exception ex)
         {
