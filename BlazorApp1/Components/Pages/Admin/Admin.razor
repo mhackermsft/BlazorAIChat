@@ -1,0 +1,25 @@
+﻿@page "/admin"
+@using BlazorAIChat.Models
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = nameof(UserRoles.Admin))]
+
+<div class="admin-container">
+    <h3 class="mb-4">Admin</h3>
+
+    <ul class="list-group" style="max-width:700px">
+        <li class="list-group-item">
+            <a href="/admin/config">Configuration</a>
+        </li>
+        <li class="list-group-item">
+            <a href="/admin/users">Users</a>
+        </li>
+        <li class="list-group-item">
+            <a href="/">Back</a>
+        </li>
+    </ul>
+</div>
+
+
+@code {
+
+}

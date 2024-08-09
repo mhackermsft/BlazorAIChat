@@ -1,0 +1,20 @@
+﻿@code {
+    [Parameter]
+    public string AlertType { get; set; } = string.Empty;
+
+    [Parameter]
+    public string AlertMessage { get; set; } = string.Empty;
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+}
+
+@if (!string.IsNullOrEmpty(AlertType) && !string.IsNullOrEmpty(AlertMessage))
+{
+    <div>
+        <div class="alert @AlertType alert-dismissible alert-top-full-width" role="alert">
+            @AlertMessage
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close" @onclick="OnClose"></button>
+        </div>
+    </div>
+}

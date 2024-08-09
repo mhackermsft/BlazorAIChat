@@ -4,21 +4,33 @@
 @inject IJSRuntime js
 @inject NavigationManager NavigationManager
 @inject AuthenticationStateProvider AuthenticationStateProvider
-@using BlazorAIChat.Components.Shared
-@using Microsoft.AspNetCore.Components.Authorization
 
+@using Azure
+@using Azure.AI.DocumentIntelligence
+@using Azure.Search.Documents.Indexes
+@using Azure.Search.Documents.Indexes.Models
+@using Azure.Storage.Blobs
+@using Azure.Storage.Blobs.Models
+@inject AIChatDBContext dbContext
+@inject UserService userService
+
+@using BlazorAIChat.Components.Shared
+@using BlazorAIChat.Models
+@using BlazorAIChat.Utils
+@using BlazorAIChat.Services
+@using Microsoft.AspNetCore.Components.Authorization
 @using DocumentFormat.OpenXml.Packaging
 @using DocumentFormat.OpenXml.Wordprocessing
-@using MarkdownSharp;
-@using Microsoft.SemanticKernel;
-@using Microsoft.SemanticKernel.ChatCompletion;
-@using Microsoft.SemanticKernel.Connectors.OpenAI;
-@using System.Text
-@using System.Text.RegularExpressions
+@using MarkdownSharp
+@using Microsoft.SemanticKernel
+@using Microsoft.SemanticKernel.ChatCompletion
+@using Microsoft.SemanticKernel.Connectors.OpenAI
 @using Microsoft.SemanticKernel.Connectors.Sqlite
 @using Microsoft.SemanticKernel.Connectors.AzureCosmosDBMongoDB
 @using Microsoft.SemanticKernel.Embeddings
 @using Microsoft.SemanticKernel.Memory
+@using System.Text
+@using System.Text.RegularExpressions
 @using System.Text.Json
 @using System.Net.Http.Headers
 @using System.Security.Claims
@@ -26,62 +38,111 @@
 
 <PageTitle>Azure Open AI Chat Demo</PageTitle>
 
-<div class="container-fluid d-flex flex-column full-height">
-    <div class="row flex-grow-1 overflow-auto" @ref="chatWindow">
-        <div class="col-md-12">
-            <div class="card">
-                <div class="card-header">
-                    <h4 class="card-title">Azure OpenAI Chat</h4>
-                    <span class="badge bg-success ms-auto me-2 align-self-center">@userName</span>
-                    @if (string.IsNullOrEmpty(cosmosDbConn))
-                    {
-                        <span class="badge bg-info ms-2 align-self-center">SQLite Memory Store</span>
-                    }
-                    else
-                    {
-                        <span class="badge bg-info ms-2 align-self-center">Azure CosmosDB Memory Store</span>
-                    }
-                    @if (userName != defaultUserName)
-                    { 
-                        <button class="btn btn-danger ms-2 align-self-center py-1 logout-button" onclick="document.location='/.auth/logout'">Logout</button>
-                    }
-
-                </div>
-                <div class="card-body chat-window" >
-                    @((MarkupString)chatHistory)<br /><br />
-                    @((MarkupString)newResponse)
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="row">
-        <div class="col-md-12">
-            <div class="input-group">
-                <input type="text" class="form-control" placeholder="Enter your message" disabled="@isResponding" @bind-value="message" @bind-value:event="oninput" @onkeydown="HandleKeyDown" />
-                <button class="btn btn-primary" @onclick="SendMessage">Send</button>
-                <InputFile @ref="inputFile" class="btn btn-warning" OnChange="HandleFileSelected" disabled="@(isFileInputDisabled||isResponding)" />
-                <button class="btn btn-secondary" @onclick="Clear">@clearCancelText</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-@if (!string.IsNullOrEmpty(alertType))
+@if (showNeedsConfigure)
 {
-    <div>
-        <div class="alert @alertType alert-dismissible alert-top-full-width" role="alert">
-                @alertMessage
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close" @onclick="CloseAlert"></button>
+    <div class="d-flex justify-content-center align-items-center vh-100">
+        <div class="card" style="max-width: 700px; width: 100%;">
+            <div class="card-header">
+                <h5 class="card-title">Configuration Required</h5>
+            </div>
+            <div class="card-body">
+                <p class="card-text">
+                    To complete the application deployment, you must enable authentication on the Azure App Service or you must set RequireEasyAuth to false in the App Service configuration or appsettings.json file.<br /><br />
+                    Setting RequireEasyAuth to false will allow anonymous users to access the application. This also means that all chat history and uploaded knowledge will be shared with all users.
+                </p>
+            </div>
+        </div>
+    </div>
+
+}
+else if (userService.DoesUserNeedToRequestAccess(currentUser, config, RequireEasyAuth))
+{
+    <div class="d-flex justify-content-center">
+        <div class="card" style="max-width: 700px; width: 100%;">
+            <div class="card-header">
+                <h5 class="card-title">Request Access</h5>
+            </div>
+            <div class="card-body">
+                <p class="card-text">
+                    You do not currently have access to this page. If you would like to request access, click on the button below. All requests will be reviewed by the administrator.
+                </p>
+                <button class="btn btn-primary" @onclick="RequestAccess">Request Access</button>
+            </div>
         </div>
     </div>
 }
+else
+{
+    @if (userService.IsUserAccountExpired(currentUser, config, RequireEasyAuth))
+    {
+        <div class="row">
+            <div class="col-md-12">
+                Your account has expired. Please contact the administrator to renew your account.
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="container-fluid d-flex flex-column full-height">
+            <div class="row flex-grow-1 overflow-hidden">
+                <div class="col-md-12 d-flex flex-column">
+                    <div class="card custom-card">
+                        <div class="card-header">
+                            <h4 class="card-title">Azure OpenAI Chat</h4>
+                            <span @onclick="GoToProfile" class="badge bg-success ms-auto me-2 align-self-center">@currentUser.Name [@(Enum.GetName(currentUser.Role))]</span>
+                            <!-- Show which memory store that is being used -->
+                            @if (string.IsNullOrEmpty(cosmosDbConn))
+                            {
+                                <span class="badge bg-info ms-2 align-self-center">SQLite Memory Store</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-info ms-2 align-self-center">Azure CosmosDB Memory Store</span>
+                            }
 
-<CustomModal IsVisible="isFileInputDisabled" Title="Document Processing" Message="Please wait, the document is uploading and processing. The amount of time this takes depends upon the size of the document." />
+                            <!-- Show admin and logout buttons if needed -->
+                            <span class="right-buttons">
+                                @if (currentUser.Role == UserRoles.Admin)
+                                {
+                                    <button class="btn btn-danger ms-2 align-self-center py-1" onclick="document.location='/admin'">Admin</button>
+                                }
 
+                                @if (currentUser.Role != UserRoles.Guest)
+                                {
+                                    <button class="btn btn-danger ms-2 align-self-center py-1" onclick="document.location='/.auth/logout'">Logout</button>
+                                }
+                            </span>
+                        </div>
+                        <div @ref="chatWindow" class="card-body custom-card-body">
+                            @((MarkupString)chatHistory)<br /><br />
+                            @((MarkupString)newResponse)
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="row input-group-container">
+                <div class="col-md-12">
+                    <div class="input-group">
+                        <input type="text" class="form-control" placeholder="Enter your message" disabled="@isResponding" @bind-value="message" @bind-value:event="oninput" @onkeydown="HandleKeyDown" />
+                        <button class="btn btn-primary" @onclick="SendMessage">Send</button>
+                        <InputFile @ref="inputFile" class="btn btn-warning" OnChange="HandleFileSelected" disabled="@(isFileInputDisabled||isResponding)" />
+                        <button class="btn btn-secondary" @onclick="Clear">@clearCancelText</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    }
+
+    <Alert AlertType="@alertType" AlertMessage="@alertMessage" OnClose="CloseAlert" />
+    <CustomModal IsVisible="isFileInputDisabled" Title="Document Processing" Message="Please wait, the document is uploading and processing. The amount of time this takes depends upon the size of the document." />
+ 
+}
 
 @code {
 
     #pragma warning disable SKEXP0010, SKEXP0001, SKEXP0020
+    private Config config = new Config(){ Id=Guid.Empty};
 
     private IBrowserFile? selectedFile = null;
     private string chatHistory = string.Empty;
@@ -93,6 +154,7 @@
     private ChatHistory history = new ChatHistory();
     Markdown md = new Markdown();
 
+    bool showNeedsConfigure = false;
     bool isFileInputDisabled=false;
     bool isResponding = false;
     bool stopResponding = false;
@@ -108,7 +170,8 @@
     private InputFile? inputFile;
 
     bool RequireEasyAuth = false;
-    string userName = string.Empty;
+
+    User currentUser = new User();
 
     private string alertMessage { get; set; } = string.Empty;
     private string alertType { get; set; } = string.Empty;
@@ -116,7 +179,6 @@
     string clearCancelText = "Clear";
 
     const long maxFileSizeBytes = 1073741824; // 1GB
-    const string defaultUserName = "Guest";
     string welcomeMessage = string.Empty;
 
     bool chatModelSupportsImages = false;
@@ -124,23 +186,17 @@
     string uploadImageType= string.Empty;
 
     string systemMessage = "You are a helpful AI assistant. Respond in a friendly and professional tone.";
+    string documentIntelligenceEndpoint= string.Empty;
+    string documentIntelligenceApiKey = string.Empty;
+    string azureStorageConnectionString = string.Empty;
+    string aiSearchEndpoint = string.Empty;
+    string aiSearchApiKey = string.Empty;
 
     protected override async Task OnInitializedAsync()
     {
-        ClaimsPrincipal? user = null;
         try
         {
-            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
-            user = authState.User;
-
-            if (user.Identity?.IsAuthenticated == true)
-            {
-                userName = user.Identity.Name ?? user.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? defaultUserName;
-            }
-            else
-            {
-                userName = defaultUserName;
-            }
+            currentUser = await userService.GetCurrentUserAsync();
 
         }
         catch (Exception ex)
@@ -150,7 +206,7 @@
 
         try
         {
-            // Get the model, endpoint and API key from appsettings.json
+            // Get settings from appsettings.json or App Service configuration
             var endpoint = Configuration["AzureOpenAIChatCompletion:Endpoint"] ?? string.Empty;
             var apiKey = Configuration["AzureOpenAIChatCompletion:ApiKey"] ?? string.Empty;
             var model = Configuration["AzureOpenAIChatCompletion:Model"] ?? string.Empty;
@@ -160,17 +216,29 @@
             chatModelSupportsImages = bool.Parse(Configuration["AzureOpenAIChatCompletion:SupportsImages"] ?? "false");
             RequireEasyAuth = bool.Parse(Configuration["RequireEasyAuth"] ?? "false");
             systemMessage = Configuration["SystemMessage"] ?? systemMessage;
+            documentIntelligenceEndpoint = Configuration["DocumentIntelligence:Endpoint"] ?? string.Empty;
+            documentIntelligenceApiKey = Configuration["DocumentIntelligence:ApiKey"] ?? string.Empty;
+            azureStorageConnectionString = Configuration["ConnectionStrings:AzureStorage"] ?? string.Empty;
+            aiSearchEndpoint = Configuration["AzureAISearch:Endpoint"] ?? string.Empty;
+            aiSearchApiKey = Configuration["AzureAISearch:ApiKey"] ?? string.Empty;
 
-            //If the user is not authenticated and guests are not allowed, then redirect to the login page
-            if ((user?.Identity?.IsAuthenticated == false || userName == defaultUserName) && RequireEasyAuth)
+            //Verify if the App Service needs configuration.
+            if (currentUser.Id=="Guest User" && RequireEasyAuth)
             {
-                NavigationManager.NavigateTo("/.auth/logout");
+                showNeedsConfigure = true;
+                StateHasChanged();
+                return;
             }
 
-            welcomeMessage = $"Welcome to the Azure OpenAI Chat demo! You can ask your questions using the text box below. Additionally, you can upload DOCX, PDF, {(chatModelSupportsImages?"Images, ":string.Empty)} or TXT files (up to 1GB) to ask questions about their content.";
+            //Get app config data
+            var dbConfig = dbContext.Config.FirstOrDefault();
+            if (dbConfig != null)
+                config = dbConfig;       
+
+            //Setup the welcome message
+            welcomeMessage = $"Welcome to the Azure OpenAI Chat demo! You can ask your questions using the text box below. Additionally, you can upload DOCX, PDF, {(chatModelSupportsImages?"Images, ":string.Empty)} or TXT files (up to 1GB) to ask questions about their content.<br/>";
 
             // Create a kernel with Azure OpenAI chat completion
-
             builder = Kernel.CreateBuilder()
             .AddAzureOpenAIChatCompletion(model, endpoint, apiKey)
             .AddAzureOpenAITextEmbeddingGeneration(embedModel, endpoint, apiKey);
@@ -181,8 +249,10 @@
             // Build the kernel
             kernel = builder.Build();
 
+            //Get reference to the chat completion service
             chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
 
+            //Configure the memory store
             if (string.IsNullOrEmpty(cosmosDbConn))
             {
                 sqlLiteMemoryStore = await SqliteMemoryStore.ConnectAsync("memory.sqlite"); 
@@ -196,7 +266,7 @@
                 semanticMemory = new SemanticTextMemory(cosmosDBMemoryStore, kernel.GetRequiredService<ITextEmbeddingGenerationService>());
             }
 
-             //Clear the chat history and set the system message
+            //Clear the chat history and set the system message
             internalClear();
         }
         catch (Exception ex)
@@ -208,6 +278,7 @@
 
     private async void Clear()
     {
+        //If this is called when the AI is responding, then stop the response, otherwise clear the chat
         if (isResponding)
         {
             stopResponding = true;
@@ -228,13 +299,16 @@
             //if the user confirms, delete the memory store
             if (confirmed)
             {
+                //If an Azure Storage connection string has been provided, delete the files from Azure Blob Storage
+                await DeleteFilesFromBlobForUser();
+
                 if (string.IsNullOrEmpty(cosmosDbConn))
                 {
-                    await sqlLiteMemoryStore!.DeleteCollectionAsync(userName);
+                    await sqlLiteMemoryStore!.DeleteCollectionAsync(currentUser.Id);
                 }
                 else
                 {
-                    await cosmosDBMemoryStore!.DeleteCollectionAsync(userName);
+                    await cosmosDBMemoryStore!.DeleteCollectionAsync(currentUser.Id);
                 }
                 ShowAlert("All documents have been removed.", AlertTypeEnum.info);
             }
@@ -267,7 +341,7 @@
                 if (uploadImageByteArray==null)
                 {
                     history.AddUserMessage(message);
-                    
+
                 }
                 else
                 {
@@ -282,17 +356,20 @@
                 chatHistory += "<br/><b>user</b>: " + message;
 
                 //Do we have any memories to augment the chat completion?
-                var results = semanticMemory!.SearchAsync(userName, message, 10);
+                var results = semanticMemory!.SearchAsync(currentUser.Id, message, 10);
 
-                if (results!=null)
+                bool addedMemory = false;
+                await foreach (var result in results)
                 {
-                    history.AddUserMessage("I found some memories that might help you answer the question:");
-                    await foreach (var result in results)
+                    if (!addedMemory)
                     {
-                        history.AddUserMessage(result.Metadata.Text);
-                        Console.WriteLine($"Memory: {result.Metadata.Text}");
+                        history.AddUserMessage("I found some memories that might help you answer the question:");
+                        addedMemory = true;
                     }
+                    history.AddUserMessage(result.Metadata.Text);
+                    Console.WriteLine($"Memory: {result.Metadata.Text}");
                 }
+
 
                 message = string.Empty;
                 StateHasChanged();
@@ -305,6 +382,7 @@
         catch (Exception ex)
         {
             Console.WriteLine($"SendMessage error: {ex.Message}");
+            ShowAlert($"An error occurred while sending the message. {ex.Message}", AlertTypeEnum.danger);
         }
     }
 
@@ -415,17 +493,23 @@
             using var stream = selectedFile.OpenReadStream(maxAllowedSize: 1073741824); // 1GB
             using var memoryStream = new MemoryStream();
             await stream.CopyToAsync(memoryStream);
-            memoryStream.Position = 0;
 
-            if (fileName.EndsWith(".docx"))
+            //This will save the file to blob storage if a connection string is provided
+            await SaveFileToBlob(memoryStream, selectedFile.Name);
+
+            //Check to see if we need to use Azure AI Search
+            bool useAzureAISearch = !string.IsNullOrEmpty(aiSearchApiKey) && !string.IsNullOrEmpty(aiSearchEndpoint);
+
+            //Check to see how we need to process the files. If we are using Azure AI Search, then we will not process the PDF, DOCX, or TXT files
+            if (fileName.EndsWith(".docx") && !useAzureAISearch)
             {
                 await ProcessDocxFile(memoryStream);
             }
-            else if (fileName.EndsWith(".pdf"))
+            else if (fileName.EndsWith(".pdf") && !useAzureAISearch)
             {
                 await ProcessPdfFile(memoryStream);
             }
-            else if (fileName.EndsWith(".txt"))
+            else if (fileName.EndsWith(".txt") && !useAzureAISearch)
             {
                 await ProcessTxtFile(memoryStream);
             }
@@ -433,14 +517,7 @@
             {
                 ProcessImage(memoryStream, fileName);
             }
-            else
-            {
-                string alertMessage = chatModelSupportsImages
-                    ? "Please upload a PDF, DOCX, TXT, or image file."
-                    : "Please upload a PDF, DOCX, or TXT file. Image uploads are not supported.";
-                ShowAlert($"The file {selectedFile.Name} is not a supported file type. {alertMessage}", AlertTypeEnum.warning);
-                return;
-            }
+
 
             if (inputFile != null)
             {
@@ -457,11 +534,130 @@
         }
     }
 
+    private async Task SaveFileToBlob(MemoryStream memoryStream, string filename)
+    {
+        //If a blob connection string has been supplied, try to save the file to Azure Blob Storage
+        try
+        {
+            if (!string.IsNullOrEmpty(azureStorageConnectionString))
+            {
+                memoryStream.Position = 0;
+
+                // Create a BlobServiceClient object which will be used to create a container client
+                BlobServiceClient blobServiceClient = new BlobServiceClient(azureStorageConnectionString);
+
+                // Create the container and return a container client object
+                string container = ConvertToValidContainerName(currentUser.Id);
+                BlobContainerClient containerClient = blobServiceClient.GetBlobContainerClient(container);
+                await containerClient.CreateIfNotExistsAsync();
+
+                // Ensure the filename is valid for a blob
+                filename = ConvertToValidBlobName(filename);
+
+                // Get a reference to a blob
+                BlobClient blobClient = containerClient.GetBlobClient(filename);
+
+                // Upload the file
+                blobClient.Upload(memoryStream, true);
+
+                //If the AI Search endpoint and API key are provided, create a data source for the uploaded file if it doesn't already exist
+                await CreateAISearchDataSource(container);
+
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowAlert($"An error occurred while saving the file to Azure Blob Storage. {ex.Message}", AlertTypeEnum.danger);
+
+        }
+    }
+
+    private async Task DeleteFilesFromBlobForUser()
+    {
+        try
+        {
+            if (!string.IsNullOrEmpty(azureStorageConnectionString))
+            {
+                // Create a BlobServiceClient object which will be used to create a container client
+                BlobServiceClient blobServiceClient = new BlobServiceClient(azureStorageConnectionString);
+
+                // Create the container and return a container client object
+                string container = ConvertToValidContainerName(currentUser.Id);
+                BlobContainerClient containerClient = blobServiceClient.GetBlobContainerClient(container);
+
+                // Check if the container exists
+                if (await containerClient.ExistsAsync())
+                {
+                    // List all blobs in the container
+                    await foreach (BlobItem blobItem in containerClient.GetBlobsAsync())
+                    {
+                        // Get a reference to a blob
+                        BlobClient blobClient = containerClient.GetBlobClient(blobItem.Name);
+
+                        // Delete the blob
+                        await blobClient.DeleteIfExistsAsync();
+                    }
+
+                    // If the AI Search endpoint and API key are provided, delete the data source for the uploaded file
+                    await DeleteAISearchDataSource(container);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowAlert($"An error occurred while deleting the files from Azure Blob Storage. {ex.Message}", AlertTypeEnum.danger);
+        }
+    }
+
+
+
+    //Generate valid blob names based on original filename
+    private string ConvertToValidBlobName(string filename)
+    {
+        // Replace invalid characters with a hyphen
+        string validBlobName = Regex.Replace(filename, @"[^a-zA-Z0-9\-]", "-");
+
+        // Ensure the blob name is within the allowed length (1-1024 characters)
+        if (validBlobName.Length > 1024)
+        {
+            validBlobName = validBlobName.Substring(0, 1024);
+        }
+
+        return validBlobName;
+    }
+
+    //Generate valid container names based on the passed in name.
+    private string ConvertToValidContainerName(string name)
+    {
+        // Convert to lowercase
+        string validContainerName = name.ToLower();
+
+        // Replace invalid characters with a hyphen
+        validContainerName = Regex.Replace(validContainerName, @"[^a-z0-9\-]", "-");
+
+        // Remove consecutive dashes
+        validContainerName = Regex.Replace(validContainerName, @"-+", "-");
+
+        // Trim dashes from the start and end
+        validContainerName = validContainerName.Trim('-');
+
+        // Ensure the container name is within the allowed length (3-63 characters)
+        if (validContainerName.Length < 3)
+        {
+            validContainerName = validContainerName.PadRight(3, 'a'); // Pad with 'a' to meet minimum length
+        }
+        else if (validContainerName.Length > 63)
+        {
+            validContainerName = validContainerName.Substring(0, 63);
+        }
+
+        return validContainerName;
+    }
+
     private void ProcessImage(MemoryStream memoryStream, string filename)
     {
         try
         {
-
             //set the mime type of the image to the uploadImageType string based on the filename
             if (filename.EndsWith(".jpg") || filename.EndsWith(".jpeg"))
             {
@@ -494,44 +690,64 @@
 
     private async Task ProcessDocxFile(MemoryStream memoryStream)
     {
-        using (WordprocessingDocument wordDoc = WordprocessingDocument.Open(memoryStream, false))
+        try
         {
-            Body? body = wordDoc.MainDocumentPart?.Document.Body;
-            if (body != null)
+            //Ensure we are at the start of the memoryStream
+            memoryStream.Position = 0;
+
+            //Use OpenXML SDK to process the document's paragraphs and save them to the memory store
+            using (WordprocessingDocument wordDoc = WordprocessingDocument.Open(memoryStream, false))
             {
-                var paragraphs = body.Elements<Paragraph>();
-                foreach (var paragraph in paragraphs)
+                Body? body = wordDoc.MainDocumentPart?.Document.Body;
+                if (body != null)
                 {
-                    if (!string.IsNullOrEmpty(paragraph.InnerText) && semanticMemory != null)
+                    var paragraphs = body.Elements<Paragraph>();
+                    foreach (var paragraph in paragraphs)
                     {
-                        await semanticMemory!.SaveInformationAsync(userName, paragraph.InnerText, Guid.NewGuid().ToString());
+                        if (!string.IsNullOrEmpty(paragraph.InnerText) && semanticMemory != null)
+                        {
+                            await semanticMemory!.SaveInformationAsync(currentUser.Id, paragraph.InnerText, Guid.NewGuid().ToString());
+                        }
                     }
                 }
             }
         }
-
+        catch (Exception ex)
+        {
+            ShowAlert($"An error occurred while processing the DOCX document. {ex.Message}", AlertTypeEnum.danger);
+            Console.WriteLine($"ProcessDocxFile error: {ex.Message}");
+        }
     }
-
- 
 
     private async Task ProcessPdfFile(MemoryStream memoryStream)
     {
         try
         {
-            using var pdfDocument = PdfDocument.Open(memoryStream);
-            foreach (var page in pdfDocument.GetPages())
+            //Ensure we are at the start of the memoryStream
+            memoryStream.Position = 0;
+
+
+            if (string.IsNullOrEmpty(documentIntelligenceEndpoint) || string.IsNullOrEmpty(documentIntelligenceApiKey))
             {
-                string pageText = page.Text;
-                var paragraphs = SplitIntoParagraphs(pageText);
-                foreach (var paragraph in paragraphs)
+                using var pdfDocument = PdfDocument.Open(memoryStream);
+                foreach (var page in pdfDocument.GetPages())
                 {
-                    if (!string.IsNullOrEmpty(paragraph) && semanticMemory != null)
+                    string pageText = page.Text;
+                    var paragraphs = SplitIntoParagraphs(pageText);
+                    foreach (var paragraph in paragraphs)
                     {
-                        await semanticMemory.SaveInformationAsync(userName, paragraph, Guid.NewGuid().ToString());
+                        if (!string.IsNullOrEmpty(paragraph) && semanticMemory != null)
+                        {
+                            await semanticMemory.SaveInformationAsync(currentUser.Id, paragraph, Guid.NewGuid().ToString());
+                        }
                     }
                 }
             }
-
+            else
+            {
+                //Use the Document Intelligence API via SDK to process the document's paragraphs and save them to the memory store
+                await ProcessDocWithDocIntelligence(memoryStream);
+            }
         }
         catch (Exception ex)
         {
@@ -545,6 +761,10 @@
     {
         try
         {
+            //Ensure we are at the start of the memoryStream
+            memoryStream.Position = 0;
+
+
             using (StreamReader reader = new StreamReader(memoryStream))
             {
                 string text = await reader.ReadToEndAsync();
@@ -553,11 +773,11 @@
                 {
                     if (!string.IsNullOrEmpty(paragraph) && semanticMemory != null)
                     {
-                        await semanticMemory.SaveInformationAsync(userName, paragraph, Guid.NewGuid().ToString());
+                        await semanticMemory.SaveInformationAsync(currentUser.Id, paragraph, Guid.NewGuid().ToString());
                     }
                 }
             }
- 
+
         }
         catch (Exception ex)
         {
@@ -566,6 +786,42 @@
         }
     }
 
+
+    private async Task ProcessDocWithDocIntelligence(MemoryStream memoryStream)
+    {
+        if (memoryStream == null) throw new ArgumentNullException(nameof(memoryStream));
+        if (string.IsNullOrEmpty(documentIntelligenceEndpoint)) throw new ArgumentNullException(nameof(documentIntelligenceEndpoint));
+        if (string.IsNullOrEmpty(documentIntelligenceApiKey)) throw new ArgumentNullException(nameof(documentIntelligenceApiKey));
+        if (semanticMemory == null) throw new ArgumentNullException(nameof(semanticMemory));
+
+        try
+        {
+            //Ensure we are at the start of the memoryStream
+            memoryStream.Position = 0;
+
+            var client = new DocumentIntelligenceClient(new Uri(documentIntelligenceEndpoint), new AzureKeyCredential(documentIntelligenceApiKey));
+            var content = new AnalyzeDocumentContent()
+                {
+                    Base64Source = await BinaryData.FromStreamAsync(memoryStream)
+                };
+
+            var operation = await client.AnalyzeDocumentAsync(WaitUntil.Completed, "prebuilt-layout", content);
+            var result = operation.Value;
+
+            foreach (DocumentParagraph paragraph in result.Paragraphs)
+            {
+                if (!string.IsNullOrEmpty(paragraph.Content))
+                {
+                    await semanticMemory.SaveInformationAsync(currentUser.Id, paragraph.Content, Guid.NewGuid().ToString());
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowAlert($"An error occurred processing the document with Azure Document Intelligence: {ex.Message}", AlertTypeEnum.danger);
+            Console.WriteLine($"An error occurred processing the document with Azure Document Intelligence: {ex.Message}");
+        }
+    }
 
 
     private List<string> SplitIntoParagraphs(string text)
@@ -590,9 +846,76 @@
         return paragraphs;
     }
 
+    private async Task CreateAISearchDataSource(string containerName)
+    {
+        try
+        {
+            if (!string.IsNullOrEmpty(aiSearchEndpoint) && !string.IsNullOrEmpty(aiSearchApiKey))
+            {
+                // Create a new Azure AI Search data source
+                var client = new SearchIndexerClient(new Uri(aiSearchEndpoint), new AzureKeyCredential(aiSearchApiKey));
+                var dataSourceName = $"azureblob-{containerName}";
+
+                // Check if the data source already exists
+                try
+                {
+                    var existingDataSource = await client.GetDataSourceConnectionAsync(dataSourceName);
+                    if (existingDataSource != null)
+                    {
+                        Console.WriteLine($"Data source '{dataSourceName}' already exists.");
+                        return;
+                    }
+                }
+                catch (RequestFailedException ex) when (ex.Status == 404)
+                {
+                    // Data source does not exist, proceed to create it.
+                    var dataSource = new SearchIndexerDataSourceConnection(
+                        name: dataSourceName,
+                        type: SearchIndexerDataSourceType.AzureBlob,
+                        connectionString: azureStorageConnectionString,
+                        container: new SearchIndexerDataContainer(containerName))
+                        {
+                            // Configure change detection policy
+                            DataChangeDetectionPolicy = new HighWaterMarkChangeDetectionPolicy("metadata_storage_last_modified") // Use the required column
+                        };
+
+                    await client.CreateOrUpdateDataSourceConnectionAsync(dataSource);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowAlert($"An error occurred while creating the Azure AI Search data source. {ex.Message}", AlertTypeEnum.danger);
+            Console.WriteLine($"CreateAISearchDataSource error: {ex.Message}");
+        }
+    }
+
+    private async Task DeleteAISearchDataSource(string containerName)
+    {
+        try
+        {
+            if (!string.IsNullOrEmpty(aiSearchEndpoint) && !string.IsNullOrEmpty(aiSearchApiKey))
+            {
+                var client = new SearchIndexerClient(new Uri(aiSearchEndpoint), new AzureKeyCredential(aiSearchApiKey));
+                await client.DeleteDataSourceConnectionAsync($"azureblob-{containerName}");
+            }
+        }
+        catch (RequestFailedException ex) when (ex.Status == 404)
+        {
+            // Data source not found, handle gracefully.  This is not a critical error.
+            Console.WriteLine($"Data source not found: {ex.Message}");
+        }
+        catch (Exception ex)
+        {
+            ShowAlert($"An error occurred while deleting the Azure AI Search data source. {ex.Message}", AlertTypeEnum.danger);
+            Console.WriteLine($"DeleteAISearchDataSource error: {ex.Message}");
+        }
+    }
+
+
     private void ShowAlert(string message, AlertTypeEnum alertType= AlertTypeEnum.info)
     {
-        
+
         alertMessage += message + " ";
         this.alertType = "alert-" + (Enum.GetName(typeof(AlertTypeEnum), alertType)?.ToLower() ?? "warning");
         StateHasChanged();
@@ -611,4 +934,40 @@
         return "data:image/png;base64," + Convert.ToBase64String(byteImage);
     }
 
+    private void RequestAccess()
+    {
+
+        //check to see if the user already has a request for access
+        //if they do, then show a message that they already have a request
+        //if they don't, then add a request to the database
+        var userDetails = dbContext.Users.FirstOrDefault(u => u.Id==currentUser.Id);
+        if (userDetails!=null)
+        {
+            ShowAlert("You have already requested access to this page.", AlertTypeEnum.warning);
+            return;
+        }
+        else
+        {
+            //if there are no admins already, then add the user as an admin and auto approve
+            if (!dbContext.Users.Any(u => u.Role == UserRoles.Admin))
+            {
+                dbContext.Users.Add(new User() { Id = currentUser.Id, Name = currentUser.Name, Role = UserRoles.Admin, DateRequested = DateTime.Now, DateApproved=DateTime.Now, ApprovedBy=string.Empty, Email=string.Empty });
+                dbContext.SaveChanges();
+                currentUser.Role = UserRoles.Admin;
+                ShowAlert("Your request for access has been approved and you are the first administrator.", AlertTypeEnum.success);
+            }
+            else
+            {
+                dbContext.Users.Add(new User() { Id = currentUser.Id, Name = currentUser.Name, Role = UserRoles.Guest, DateRequested = DateTime.Now });
+                dbContext.SaveChanges();
+                ShowAlert("Your request for access has been submitted. You will have access once an admin approves the request.", AlertTypeEnum.success);
+            }
+        }
+    }
+
+    private void GoToProfile()
+    {
+        if (currentUser.Role!=UserRoles.Guest)
+            NavigationManager.NavigateTo("/userprofile");
+    }
 }
