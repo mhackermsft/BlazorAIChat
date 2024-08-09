@@ -40,17 +40,32 @@
 
         public bool IsUserAccountExpired(User user, Config config, bool requireEasyAuth)
         {
+            //Account is never expired if EasyAuth is not required
+            if (requireEasyAuth==false)
+            {
+                return false;
+            }
+
+            //Admin accounts never expire
             if (user.Role == UserRoles.Admin)
             {
                 return false;
             }
 
+            //If expiration days is set to 0, then accounts never expire
             if (config.ExpirationDays == 0)
             {
                 return false;
             }
 
-            return user.DateApproved != null && user.Role == UserRoles.User && requireEasyAuth && config.RequireAccountApprovals && user.DateApproved.Value.AddDays(config.ExpirationDays) <= DateTime.Now;
+            //If account approvals are not required, then accounts never expire
+            if (config.RequireAccountApprovals == false)
+            {
+                return false;
+            }
+
+            //If the account has been approved and the expiration date has passed, then the account is expired
+            return user.DateApproved != null && user.DateApproved.Value.AddDays(config.ExpirationDays) <= DateTime.Now;
         }
     }
 
