@@ -38,16 +38,36 @@
 
 <PageTitle>Azure Open AI Chat Demo</PageTitle>
 
-@if (userService.DoesUserNeedToRequestAccess(currentUser, config, RequireEasyAuth))
+@if (userPrincipal?.Identity?.IsAuthenticated == null && RequireEasyAuth)
 {
-    <div class="row">
-        <div class="col-md-12">
-            You do not currently have access to this page. If you would like to request access, click on the button below.  All requests will be reviewed by the administrator.
+    <div class="d-flex justify-content-center align-items-center vh-100">
+        <div class="card" style="max-width: 700px; width: 100%;">
+            <div class="card-header">
+                <h5 class="card-title">Configuration Required</h5>
+            </div>
+            <div class="card-body">
+                <p class="card-text">
+                    To complete the application deployment, you must enable authentication on the Azure App Service or you must set RequireEasyAuth to false in the App Service configuration or appsettings.json file.<br /><br />
+                    Setting RequireEasyAuth to false will allow anonymous users to access the application. This also means that all chat history and uploaded knowledge will be shared with all users.
+                </p>
+            </div>
         </div>
     </div>
-    <div class="row">
-        <div class="col-md-12">
-            <button class="btn btn-primary" @onclick="RequestAccess">Request Access</button>
+
+}
+else if (userService.DoesUserNeedToRequestAccess(currentUser, config, RequireEasyAuth))
+{
+    <div class="d-flex justify-content-center">
+        <div class="card" style="max-width: 700px; width: 100%;">
+            <div class="card-header">
+                <h5 class="card-title">Request Access</h5>
+            </div>
+            <div class="card-body">
+                <p class="card-text">
+                    You do not currently have access to this page. If you would like to request access, click on the button below. All requests will be reviewed by the administrator.
+                </p>
+                <button class="btn btn-primary" @onclick="RequestAccess">Request Access</button>
+            </div>
         </div>
     </div>
 }
@@ -64,9 +84,9 @@ else
     else
     {
         <div class="container-fluid d-flex flex-column full-height">
-            <div class="row flex-grow-1 overflow-auto" @ref="chatWindow">
-                <div class="col-md-12">
-                    <div class="card">
+            <div class="row flex-grow-1 overflow-hidden">
+                <div class="col-md-12 d-flex flex-column">
+                    <div class="card custom-card">
                         <div class="card-header">
                             <h4 class="card-title">Azure OpenAI Chat</h4>
                             <span @onclick="GoToProfile" class="badge bg-success ms-auto me-2 align-self-center">@currentUser.Name [@(Enum.GetName(currentUser.Role))]</span>
@@ -93,14 +113,14 @@ else
                                 }
                             </span>
                         </div>
-                        <div class="card-body chat-window">
+                        <div @ref="chatWindow" class="card-body custom-card-body">
                             @((MarkupString)chatHistory)<br /><br />
                             @((MarkupString)newResponse)
                         </div>
                     </div>
                 </div>
             </div>
-            <div class="row">
+            <div class="row input-group-container">
                 <div class="col-md-12">
                     <div class="input-group">
                         <input type="text" class="form-control" placeholder="Enter your message" disabled="@isResponding" @bind-value="message" @bind-value:event="oninput" @onkeydown="HandleKeyDown" />
@@ -114,7 +134,6 @@ else
 
     }
 
-   
     <Alert AlertType="@alertType" AlertMessage="@alertMessage" OnClose="CloseAlert" />
     <CustomModal IsVisible="isFileInputDisabled" Title="Document Processing" Message="Please wait, the document is uploading and processing. The amount of time this takes depends upon the size of the document." />
  
@@ -207,12 +226,6 @@ else
             var dbConfig = dbContext.Config.FirstOrDefault();
             if (dbConfig != null)
                 config = dbConfig;       
-
-            //If the user is not authenticated and guests are not allowed, then redirect to Bing
-            if (userPrincipal?.Identity?.IsAuthenticated == false && RequireEasyAuth)
-            {
-                NavigationManager.NavigateTo("https://bing.com");
-            }
 
             //Setup the welcome message
             welcomeMessage = $"Welcome to the Azure OpenAI Chat demo! You can ask your questions using the text box below. Additionally, you can upload DOCX, PDF, {(chatModelSupportsImages?"Images, ":string.Empty)} or TXT files (up to 1GB) to ask questions about their content.<br/>";
