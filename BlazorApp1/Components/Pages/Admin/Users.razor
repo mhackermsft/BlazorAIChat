@@ -88,10 +88,12 @@
                 <label>Approved:</label>
                 <InputDate class="form-control" @bind-Value="selectedUser.DateApproved" />
             </div>
+            <br/>
             <button type="button" class="btn btn-primary" @onclick="SaveChanges">Save</button>
             <button type="button" class="btn btn-secondary" @onclick="CancelEdit">Cancel</button>
         </div>
     </div>
+
 }
 
 @code {
@@ -143,11 +145,6 @@
                 selectedUser.DateApproved = null;
                 selectedUser.ApprovedBy = null;
             }
-            else
-            {
-                selectedUser.DateApproved = DateTime.Now;
-                selectedUser.ApprovedBy = currentUser.Id;
-            }
 
             DbContext.Update(selectedUser);
             await DbContext.SaveChangesAsync();
@@ -163,6 +160,7 @@
         {
             user.DateApproved = DateTime.Now;
             user.ApprovedBy = currentUser.Id;
+            user.Role = UserRoles.User;
             DbContext.Update(user);
             await DbContext.SaveChangesAsync();
             users = await DbContext.Users.ToListAsync();

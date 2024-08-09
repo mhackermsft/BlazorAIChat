@@ -960,7 +960,7 @@ else
             {
                 dbContext.Users.Add(new User() { Id = currentUser.Id, Name = currentUser.Name, Role = UserRoles.Guest, DateRequested = DateTime.Now });
                 dbContext.SaveChanges();
-                ShowAlert("Your request for access has been submitted.", AlertTypeEnum.success);
+                ShowAlert("Your request for access has been submitted. You will have access once an admin approves the request.", AlertTypeEnum.success);
             }
         }
     }

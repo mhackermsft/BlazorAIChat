@@ -47,6 +47,19 @@ namespace BlazorAIChat.Authentication
                     var dbUser = await dbContext.Users.FindAsync(userId);
                     if (dbUser != null)
                     {
+                        //if the dbUser.Name has a value, replace the name claim with the value from the database
+                        if (!string.IsNullOrEmpty(dbUser.Name))
+                        {
+                            claims.Remove(claims.First(c => c.Type == ClaimTypes.Name));
+                            claims.Add(new Claim(ClaimTypes.Name, dbUser.Name));
+                        }
+                        else
+                        {
+                            //if the dbUser.Name is empty, set the dbUser.Name to the value from the claim
+                            dbUser.Name = claims.First(c => c.Type == ClaimTypes.Name).Value;
+                            await dbContext.SaveChangesAsync();
+                        }
+
                         claims.Add(new Claim(ClaimTypes.Role, Enum.GetName(dbUser.Role)!));
                         claims.Add(new Claim(ClaimTypes.Email, dbUser.Email));
                         claims.Add(new Claim("dateRequested", dbUser.DateRequested.ToString()));
