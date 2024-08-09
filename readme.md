@@ -63,12 +63,21 @@ The appsettings.json file has a few configuration parameters that must be set fo
   "RequireEasyAuth": true,
   "SystemMessage" : "You are a helpful AI assistant. Respond in a friendly and professional tone.",
   "ConnectionStrings": {
-    "CosmosDB": ""
+    "CosmosDB": "",
+    "AzureStorage:"",
+    "ConfigDatabase": "Data Source=ConfigDatabase.db"
   },
-  "CosmosDB":
-  {
+  "CosmosDB": {
     "DatabaseName": ""
-  }
+  },
+  "DocumentIntelligence": {
+  "Endpoint": "",
+  "ApiKey": ""
+},
+"AzureAISearch": {
+  "Endpoint": "",
+  "ApiKey": ""
+}
   ```
 
 - **AzureOpenAIChatCompletion Configuration**: 
@@ -85,8 +94,14 @@ If you would like to use Cosmos DB in place of SQLite for memory storage, you mu
   - Specify the connection string to the Cosmos DB for MongoDB instance.
   - Specify a database name. This database should not already be created.
 
+- **Azure Document Intelligence (optional)**
+You may choose to optionally manually deploy Azure Document Intelligence for PDF text extraction instead of using the build in PDFPig components. Provide both the endpoint and API key of your Azure Document Intelligence instance to enable.
+
+- **Azure AI Search (optional future feature)**
+This feature is not enabled yet, but once it is completed this will enable the storage of knowledge in an Azure Storage Account where documents will be indexed by Azure AI Search and made available to chat. When enabled, this will replace the document ingestion and processing built natively in this application. This will be an optional capability that you can choose to enable if you want more enhanced semantic searching over knowledge.
+
 - **EasyAuth Configuration**: 
-  - If utilizing EasyAuth with Azure App Service, it is recommended to set `RequireEasyAuth` to `true` to ensure that users are fully authenticated and not recognized as guests.
+  - If utilizing EasyAuth with Azure App Service, it is recommended to set `RequireEasyAuth` to `true` to ensure that users are fully authenticated and not recognized as guests. This setting is set to true by default.
 
 This solution has been tested with the `gpt-4o` chat model and the `text-embedding-ada-002` model. Other models can be integrated and tested as needed.
 
@@ -145,6 +160,11 @@ You can learn more about the cost for Azure App Service and Azure OpenAI models 
 * If running on an Azure App Service with EasyAuth configured, the app will show the logged in username.
 
 See the following link for details about configuring EasyAuth in Azure App Service: https://learn.microsoft.com/en-us/azure/app-service/overview-authentication-authorization
+
+## Authorization
+This solution allows you to require users to request access to the application if EasyAuth has been configured. If authorization is enabled, new users will need to click on the request access button and then wait for an administrator to approve the request. For a new deployment, the first user who requests access will automatically be approved and made the administrator. Administrators will use the admin menu to view the users and those that are waiting for approvals. Administrators may configure the application to only allow approved users to have access for a set number of days. Once a user's access expires, an administrator can edit the user's account and modify the access approved date to extend a user's access.
+
+If authorization is not enabled, then any authenticated user will be able to utilize the application and there will not be a concept of administrators.  NOTE: The default deployment is setup so that if EasyAuth is enabled, authorization will also be enabled. If an admin chooses to turn off authorization, there is currently no way to turn it back on via the application.
 
 ## Knowledge Storage
 All uploaded knowledge is stored by default in a SQLite database locally on the application host. The file is called memory.sqlite and is NOT encrypted. It is important to protect this file if any sensitive content is uploaded to the solution. 
