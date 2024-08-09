@@ -37,7 +37,7 @@
 @using UglyToad.PdfPig
 
 <PageTitle>Azure Open AI Chat Demo</PageTitle>
-
+<Alert AlertType="@alertType" AlertMessage="@alertMessage" OnClose="CloseAlert" />
 @if (showNeedsConfigure)
 {
     <div class="d-flex justify-content-center align-items-center vh-100">
@@ -134,7 +134,7 @@ else
 
     }
 
-    <Alert AlertType="@alertType" AlertMessage="@alertMessage" OnClose="CloseAlert" />
+
     <CustomModal IsVisible="isFileInputDisabled" Title="Document Processing" Message="Please wait, the document is uploading and processing. The amount of time this takes depends upon the size of the document." />
  
 }
