@@ -29,6 +29,7 @@
 @using Microsoft.SemanticKernel.Connectors.AzureCosmosDBMongoDB
 @using Microsoft.SemanticKernel.Embeddings
 @using Microsoft.SemanticKernel.Memory
+@using Microsoft.KernelMemory
 @using System.Text
 @using System.Text.RegularExpressions
 @using System.Text.Json
@@ -150,6 +151,7 @@ else
     private string message = string.Empty;
     private IKernelBuilder? builder = null;
     private Kernel? kernel = null;
+    private MemoryServerless? kernelMemory = null;
     private IChatCompletionService? chatCompletionService = null;
     private ChatHistory history = new ChatHistory();
     Markdown md = new Markdown();
@@ -249,6 +251,31 @@ else
             // Build the kernel
             kernel = builder.Build();
 
+            //get current file directory
+            var currentDirectory = "c:\\temp\\aitest";
+
+            kernelMemory = new KernelMemoryBuilder()
+            .WithAzureOpenAITextEmbeddingGeneration(new AzureOpenAIConfig
+                {
+                    APIType = AzureOpenAIConfig.APITypes.EmbeddingGeneration,
+                    Endpoint = endpoint,
+                    Deployment = embedModel,
+                    Auth = AzureOpenAIConfig.AuthTypes.APIKey,
+                    APIKey = apiKey,
+                })
+            .WithAzureOpenAITextGeneration(new AzureOpenAIConfig
+                {
+                    APIType = AzureOpenAIConfig.APITypes.ChatCompletion,
+                    Endpoint = endpoint,
+                    Deployment = model,
+                    Auth = AzureOpenAIConfig.AuthTypes.APIKey,
+                    APIKey = apiKey,
+                })
+            .WithSimpleFileStorage(new Microsoft.KernelMemory.DocumentStorage.DevTools.SimpleFileStorageConfig() { StorageType = Microsoft.KernelMemory.FileSystem.DevTools.FileSystemTypes.Disk, Directory = currentDirectory })
+            .WithSimpleVectorDb(new Microsoft.KernelMemory.MemoryStorage.DevTools.SimpleVectorDbConfig { StorageType = Microsoft.KernelMemory.FileSystem.DevTools.FileSystemTypes.Disk, Directory = currentDirectory })
+            .Build<MemoryServerless>();
+
+
             //Get reference to the chat completion service
             chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
 
@@ -337,6 +364,17 @@ else
                 //The user previously requested to stop responding, so reset the flag so it can respond to the new message
                 stopResponding = false;
 
+                var answer = await kernelMemory!.AskAsync(message, currentUser.Id.Replace(" ", ""));
+
+                if (!answer.NoResult)
+                {
+                    history.AddUserMessage("Here is some supporting information:");
+                    history.AddUserMessage(answer.Result);
+                    history.AddUserMessage("----------------------------------");
+     
+
+                }
+
                 //Save the user message to the memory store
                 if (uploadImageByteArray==null)
                 {
@@ -356,19 +394,21 @@ else
                 chatHistory += "<br/><b>user</b>: " + message;
 
                 //Do we have any memories to augment the chat completion?
-                var results = semanticMemory!.SearchAsync(currentUser.Id, message, 10);
+                //var results = semanticMemory!.SearchAsync(currentUser.Id, message, 10);
 
-                bool addedMemory = false;
-                await foreach (var result in results)
-                {
-                    if (!addedMemory)
-                    {
-                        history.AddUserMessage("I found some memories that might help you answer the question:");
-                        addedMemory = true;
-                    }
-                    history.AddUserMessage(result.Metadata.Text);
-                    Console.WriteLine($"Memory: {result.Metadata.Text}");
-                }
+
+
+                // bool addedMemory = false;
+                // await foreach (var result in results)
+                // {
+                //     if (!addedMemory)
+                //     {
+                //         history.AddUserMessage("I found some memories that might help you answer the question:");
+                //         addedMemory = true;
+                //     }
+                //     history.AddUserMessage(result.Metadata.Text);
+                //     Console.WriteLine($"Memory: {result.Metadata.Text}");
+                // }
 
 
                 message = string.Empty;
@@ -476,12 +516,12 @@ else
 
             // Only upload PDFs, DOCX, and TXT files
             var fileName = selectedFile.Name.ToLower();
-            if (!(fileName.EndsWith(".pdf") || fileName.EndsWith(".docx") || fileName.EndsWith(".txt") ||
+            if (!(fileName.EndsWith(".pdf") || fileName.EndsWith(".docx") || fileName.EndsWith(".pptx") || fileName.EndsWith(".txt") ||
                   (chatModelSupportsImages && (fileName.EndsWith(".jpg") || fileName.EndsWith(".jpeg") || fileName.EndsWith(".png") || fileName.EndsWith(".gif")))))
             {
                 string alertMessage = chatModelSupportsImages
-                    ? "Please upload a PDF, DOCX, TXT, or image file."
-                    : "Please upload a PDF, DOCX, or TXT file. Image uploads are not supported.";
+                    ? "Please upload a PDF, DOCX, PPTX, TXT, or image file."
+                    : "Please upload a PDF, DOCX, PPTX, or TXT file. Image uploads are not supported.";
                 ShowAlert($"The file {selectedFile.Name} is not a supported file type. {alertMessage}", AlertTypeEnum.warning);
                 return;
             }
@@ -501,23 +541,31 @@ else
             bool useAzureAISearch = !string.IsNullOrEmpty(aiSearchApiKey) && !string.IsNullOrEmpty(aiSearchEndpoint);
 
             //Check to see how we need to process the files. If we are using Azure AI Search, then we will not process the PDF, DOCX, or TXT files
-            if (fileName.EndsWith(".docx") && !useAzureAISearch)
-            {
-                await ProcessDocxFile(memoryStream);
-            }
-            else if (fileName.EndsWith(".pdf") && !useAzureAISearch)
-            {
-                await ProcessPdfFile(memoryStream);
-            }
-            else if (fileName.EndsWith(".txt") && !useAzureAISearch)
-            {
-                await ProcessTxtFile(memoryStream);
-            }
-            else if (fileName.EndsWith(".jpg") || fileName.EndsWith(".jpeg") || fileName.EndsWith(".png") || fileName.EndsWith(".gif"))
+            // if (fileName.EndsWith(".docx") && !useAzureAISearch)
+            // {
+            //     await ProcessDocxFile(memoryStream);
+            // }
+            // else if (fileName.EndsWith(".pdf") && !useAzureAISearch)
+            // {
+            //     await ProcessPdfFile(memoryStream);
+            // }
+            // else if (fileName.EndsWith(".txt") && !useAzureAISearch)
+            // {
+            //     await ProcessTxtFile(memoryStream);
+            // }
+            // else if (fileName.EndsWith(".jpg") || fileName.EndsWith(".jpeg") || fileName.EndsWith(".png") || fileName.EndsWith(".gif"))
+            // {
+            //     ProcessImage(memoryStream, fileName);
+            // }
+
+            if (fileName.EndsWith(".jpg") || fileName.EndsWith(".jpeg") || fileName.EndsWith(".png") || fileName.EndsWith(".gif"))
             {
                 ProcessImage(memoryStream, fileName);
             }
-
+            else
+            {
+                await ProcessWithKernelMemory(memoryStream, fileName);
+            }
 
             if (inputFile != null)
             {
@@ -783,6 +831,25 @@ else
         {
             ShowAlert($"An error occurred while processing the document. {ex.Message}", AlertTypeEnum.danger);
             Console.WriteLine($"ProcessTxtFile error: {ex.Message}");
+        }
+    }
+
+    private async Task ProcessWithKernelMemory(MemoryStream memoryStream, string filename)
+    {
+        if (kernelMemory != null)
+        {
+            var docId = Guid.NewGuid().ToString();
+            string index = currentUser.Id.Replace(" ", "");
+            TagCollection tags = new TagCollection();
+            tags.Add("user", currentUser.Id);
+            memoryStream.Position = 0;
+            await kernelMemory.ImportDocumentAsync(memoryStream, filename,docId, tags, index);
+
+            while(!await kernelMemory.IsDocumentReadyAsync(docId,index))
+            {
+                Thread.Sleep(1000);
+            }
+
         }
     }
 
