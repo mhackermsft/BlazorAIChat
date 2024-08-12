@@ -67,11 +67,27 @@ resource appService 'Microsoft.Web/sites@2020-06-01' = {
           value: requireEasyAuth ? 'true' : 'false'
         }
         {
-          name: 'ConnectionStrings__CosmosDB'
+          name: 'ConnectionStrings__PostgreSQL'
           value: ''
         }
         {
-          name: 'CosmosDB__DatabaseName'
+          name: 'ConnectionStrings__ConfigDatabase'
+          value: 'Data Source=ConfigDatabase.db'
+        }
+        {
+          name: 'DocumentIntelligence__Endpoint'
+          value: ''
+        }
+        {
+          name: 'DocumentIntelligence__ApiKey'
+          value: ''
+        }
+        {
+          name: 'AzureAISearch__Endpoint'
+          value: ''
+        }
+        {
+          name: 'AzureAISearch__ApiKey'
           value: ''
         }
       ]

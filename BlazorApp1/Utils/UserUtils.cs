@@ -7,7 +7,7 @@ namespace BlazorAIChat.Utils
     {
         public static User ConvertPrincipalToUser(ClaimsPrincipal principal)
         {
-            var user = new User();
+            var user = new User() { Id=string.Empty};
             user.Id = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value??string.Empty;
             user.Name = principal.FindFirst(ClaimTypes.Name)?.Value??string.Empty;
             user.Email = principal.FindFirst(ClaimTypes.Email)?.Value??string.Empty;

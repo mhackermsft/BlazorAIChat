@@ -17,6 +17,6 @@
 
 @code {
     [Parameter] public bool IsVisible { get; set; }
-    [Parameter] public string Title { get; set; }
-    [Parameter] public string Message { get; set; }
+    [Parameter] public required string Title { get; set; }
+    [Parameter] public required string Message { get; set; }
 }
