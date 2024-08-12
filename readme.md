@@ -62,7 +62,6 @@ The appsettings.json file has a few configuration parameters that must be set fo
   "SystemMessage" : "You are a helpful AI assistant. Respond in a friendly and professional tone.",
   "ConnectionStrings": {
     "PostgreSQL": "",
-    "AzureStorage:"",
     "ConfigDatabase": "Data Source=ConfigDatabase.db"
   },
   "DocumentIntelligence": {
@@ -87,10 +86,10 @@ The appsettings.json file has a few configuration parameters that must be set fo
 If you would like to use PostgreSQL in place of files for knowledge storage, you must manually deploy a PostgreSQL instance and configure the connection string. Note: You must enable the pgvector extension to use PostgreSQL.
 
 - **Azure Document Intelligence (optional)**
-You may choose to optionally manually deploy Azure Document Intelligence for PDF text extraction instead of using the build in PDFPig components. Provide both the endpoint and API key of your Azure Document Intelligence instance to enable.
+You may choose to optionally manually deploy Azure Document Intelligence which can be used to OCR uploaded images. This is not needed or enabled if your AI model supports images.
 
-- **Azure AI Search (optional future feature)**
-This feature is not enabled yet, but once it is completed this will enable the storage of knowledge in an Azure Storage Account where documents will be indexed by Azure AI Search and made available to chat. When enabled, this will replace the document ingestion and processing built natively in this application. This will be an optional capability that you can choose to enable if you want more enhanced semantic searching over knowledge.
+- **Azure AI Search (optional)**
+This is an optional knowledge store that if configured will replace both the file and PostreSQL storage.
 
 - **EasyAuth Configuration**: 
   - If utilizing EasyAuth with Azure App Service, it is recommended to set `RequireEasyAuth` to `true` to ensure that users are fully authenticated and not recognized as guests. This setting is set to true by default.
