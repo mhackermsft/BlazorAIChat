@@ -1,5 +1,5 @@
 param uniqueName string = uniqueString(resourceGroup().id)
-param sku string = 'F1'
+param sku string = 'B1'
 param location string = resourceGroup().location
 param repositoryUrl string = 'https://github.com/mhackermsft/BlazorAIChat'
 param branch string = 'master'

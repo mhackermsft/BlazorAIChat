@@ -138,7 +138,7 @@ Read more about Azure OpenAI Service quota here: https://learn.microsoft.com/en-
 
 ### Costs
 The cost to operate this demo application in your subscription will depend upon a few factors:
-- **App Service Plan size** - The deployment script by default uses the free tier. You can, however, adjust this to increase performance and features.
+- **App Service Plan size** - The deployment script by default uses the B1 tier. You can, however, adjust this to increase performance and features.
 - **Azure OpenAI Service** - Two Azure OpenAI Models are required in order for this demo to function properly. The recommended models are `gpt-4o` and `text-embedding-ada-002`. The chat models are priced based on the number of input and output tokens. The embedding model is priced based on the number of tokens.
 
 You can learn more about the cost for Azure App Service and Azure OpenAI models at the links below.
