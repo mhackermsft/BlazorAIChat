@@ -236,7 +236,7 @@ else
                 config = dbConfig;       
 
             //Setup the welcome message
-            welcomeMessage = $"Welcome to the Azure OpenAI Chat demo! You can ask your questions using the text box below. Additionally, you can upload DOCX, PDF, XSLX, {(chatModelSupportsImages?"Images, ":string.Empty)} or TXT files (up to 1GB) to ask questions about their content.<br/>";
+            welcomeMessage = $"Welcome to the Azure OpenAI Chat demo! You can ask your questions using the text box below. Additionally, you can upload DOCX, PDF, XLSX, {(chatModelSupportsImages?"Images, ":string.Empty)} or TXT files (up to 1GB) to ask questions about their content.<br/>";
 
             // Create a kernel with Azure OpenAI chat completion
             builder = Kernel.CreateBuilder()
@@ -510,12 +510,12 @@ else
 
             // Only upload PDFs, DOCX, and TXT files
             var fileName = selectedFile.Name.ToLower();
-            if (!(fileName.EndsWith(".pdf") || fileName.EndsWith(".docx") || fileName.EndsWith(".xslx") || fileName.EndsWith(".pptx") || fileName.EndsWith(".txt") ||
+            if (!(fileName.EndsWith(".pdf") || fileName.EndsWith(".docx") || fileName.EndsWith(".xlsx") || fileName.EndsWith(".pptx") || fileName.EndsWith(".txt") ||
                   (chatModelSupportsImages && (fileName.EndsWith(".jpg") || fileName.EndsWith(".jpeg") || fileName.EndsWith(".png") || fileName.EndsWith(".gif")))))
             {
                 string alertMessage = chatModelSupportsImages || (!string.IsNullOrEmpty(documentIntelligenceEndpoint) && !string.IsNullOrEmpty(documentIntelligenceApiKey))
-                    ? "Please upload a PDF, DOCX, XSLX, PPTX, TXT, or image file."
-                    : "Please upload a PDF, DOCX, XSLX, PPTX, or TXT file. Image uploads are not supported.";
+                    ? "Please upload a PDF, DOCX, XLSX, PPTX, TXT, or image file."
+                    : "Please upload a PDF, DOCX, XLSX, PPTX, or TXT file. Image uploads are not supported.";
                 ShowAlert($"The file {selectedFile.Name} is not a supported file type. {alertMessage}", AlertTypeEnum.warning);
                 return;
             }
