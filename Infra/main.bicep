@@ -39,6 +39,10 @@ resource appService 'Microsoft.Web/sites@2020-06-01' = {
       windowsFxVersion: 'DOTNETCORE|8.0'
       appSettings: [
         {
+          name:'SCM_COMMAND_IDLE_TIMEOUT'
+          value: '600'
+        }
+        {
           name: 'AzureOpenAIChatCompletion__Endpoint'
           value: openAiService.properties.endpoint
         }
