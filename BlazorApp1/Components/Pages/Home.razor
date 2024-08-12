@@ -33,7 +33,6 @@
 @using System.Net.Http.Headers
 @using System.Security.Claims
 
-
 <PageTitle>Azure Open AI Chat Demo</PageTitle>
 <Alert AlertType="@alertType" AlertMessage="@alertMessage" OnClose="CloseAlert" />
 @if (showNeedsConfigure)
@@ -89,7 +88,11 @@ else
                             <h4 class="card-title">Azure OpenAI Chat</h4>
                             <span @onclick="GoToProfile" class="badge bg-success ms-auto me-2 align-self-center">@currentUser.Name [@(Enum.GetName(currentUser.Role))]</span>
                             <!-- Show which memory store that is being used -->
-                            @if (string.IsNullOrEmpty(postgreSqlDbConn))
+                            @if (!string.IsNullOrEmpty(aiSearchEndpoint) && !string.IsNullOrEmpty(aiSearchApiKey))
+                            {
+                                <span class="badge bg-info ms-2 align-self-center">Azure AI Search</span>
+                            }
+                            else if (string.IsNullOrEmpty(postgreSqlDbConn))
                             {
                                 <span class="badge bg-info ms-2 align-self-center">File Memory Store</span>
                             }
@@ -137,7 +140,6 @@ else
         </div>
 
     }
-
 
     <CustomModal IsVisible="isFileInputDisabled" Title="Document Processing" Message="Please wait, the document is uploading and processing. The amount of time this takes depends upon the size of the document." />
  
@@ -268,13 +270,23 @@ else
                     APIKey = apiKey,
                 });
 
-            //Configure the memory store to use Cosmos DB
-            if (string.IsNullOrEmpty(postgreSqlDbConn))
+
+            //If Azure AI Search is configured, we use that for storage
+            if (!string.IsNullOrEmpty(aiSearchEndpoint) && !string.IsNullOrEmpty(aiSearchApiKey))
+            {
+                kernelMemoryBuilder = kernelMemoryBuilder.WithAzureAISearchMemoryDb(new AzureAISearchConfig()
+                {
+                    Endpoint = aiSearchEndpoint,
+                    APIKey = aiSearchApiKey,
+                    Auth = AzureAISearchConfig.AuthTypes.APIKey,
+                    UseHybridSearch = false
+                });
+
+            }
+            else if (string.IsNullOrEmpty(postgreSqlDbConn))
             {
                 //Use file memory store
-                kernelMemoryBuilder = kernelMemoryBuilder
-                    .WithSimpleVectorDb(new Microsoft.KernelMemory.MemoryStorage.DevTools.SimpleVectorDbConfig { StorageType = Microsoft.KernelMemory.FileSystem.DevTools.FileSystemTypes.Disk, Directory = knnDirectory });
-
+                kernelMemoryBuilder = kernelMemoryBuilder.WithSimpleVectorDb(new Microsoft.KernelMemory.MemoryStorage.DevTools.SimpleVectorDbConfig { StorageType = Microsoft.KernelMemory.FileSystem.DevTools.FileSystemTypes.Disk, Directory = knnDirectory });
             }
             else
             {
@@ -336,8 +348,6 @@ else
             //if the user confirms, delete the memory store
             if (confirmed)
             {
-                //If an Azure Storage connection string has been provided, delete the files from Azure Blob Storage
-                await DeleteFilesFromBlobForUser();
 
                 if (kernelMemory!=null)
                     await kernelMemory.DeleteIndexAsync(currentUser.Id.Replace(" ", ""));
@@ -345,7 +355,6 @@ else
                 ShowAlert("All documents have been removed.", AlertTypeEnum.info);
             }
         }
-
     }
 
     private void internalClear()
@@ -519,12 +528,6 @@ else
             using var memoryStream = new MemoryStream();
             await stream.CopyToAsync(memoryStream);
 
-            //This will save the file to blob storage if a connection string is provided
-            await SaveFileToBlob(memoryStream, selectedFile.Name);
-
-            //Check to see if we need to use Azure AI Search
-            bool useAzureAISearch = !string.IsNullOrEmpty(aiSearchApiKey) && !string.IsNullOrEmpty(aiSearchEndpoint);
-
             //Check to see how we need to process the files. If we are using Azure AI Search, then we will not process the PDF, DOCX, or TXT files
             if (fileName.EndsWith(".jpg") || fileName.EndsWith(".jpeg") || fileName.EndsWith(".png") || fileName.EndsWith(".gif"))
             {
@@ -532,12 +535,7 @@ else
             }
             else
             {
-                if (!useAzureAISearch)
-                    await ProcessWithKernelMemory(memoryStream, fileName);
-                else
-                {
-                    //TODO - push the file to Azure Blob Storage and create a data source for it in Azure AI Search
-                }
+                await ProcessWithKernelMemory(memoryStream, fileName);
             }
 
             if (inputFile != null)
@@ -553,126 +551,6 @@ else
             isFileInputDisabled = false;
             Console.WriteLine($"UploadFile error: {ex.Message}");
         }
-    }
-
-    private async Task SaveFileToBlob(MemoryStream memoryStream, string filename)
-    {
-        //If a blob connection string has been supplied, try to save the file to Azure Blob Storage
-        try
-        {
-            if (!string.IsNullOrEmpty(azureStorageConnectionString))
-            {
-                memoryStream.Position = 0;
-
-                // Create a BlobServiceClient object which will be used to create a container client
-                BlobServiceClient blobServiceClient = new BlobServiceClient(azureStorageConnectionString);
-
-                // Create the container and return a container client object
-                string container = ConvertToValidContainerName(currentUser.Id);
-                BlobContainerClient containerClient = blobServiceClient.GetBlobContainerClient(container);
-                await containerClient.CreateIfNotExistsAsync();
-
-                // Ensure the filename is valid for a blob
-                filename = ConvertToValidBlobName(filename);
-
-                // Get a reference to a blob
-                BlobClient blobClient = containerClient.GetBlobClient(filename);
-
-                // Upload the file
-                blobClient.Upload(memoryStream, true);
-
-                //If the AI Search endpoint and API key are provided, create a data source for the uploaded file if it doesn't already exist
-                await CreateAISearchDataSource(container);
-
-            }
-        }
-        catch (Exception ex)
-        {
-            ShowAlert($"An error occurred while saving the file to Azure Blob Storage. {ex.Message}", AlertTypeEnum.danger);
-
-        }
-    }
-
-    private async Task DeleteFilesFromBlobForUser()
-    {
-        try
-        {
-            if (!string.IsNullOrEmpty(azureStorageConnectionString))
-            {
-                // Create a BlobServiceClient object which will be used to create a container client
-                BlobServiceClient blobServiceClient = new BlobServiceClient(azureStorageConnectionString);
-
-                // Create the container and return a container client object
-                string container = ConvertToValidContainerName(currentUser.Id);
-                BlobContainerClient containerClient = blobServiceClient.GetBlobContainerClient(container);
-
-                // Check if the container exists
-                if (await containerClient.ExistsAsync())
-                {
-                    // List all blobs in the container
-                    await foreach (BlobItem blobItem in containerClient.GetBlobsAsync())
-                    {
-                        // Get a reference to a blob
-                        BlobClient blobClient = containerClient.GetBlobClient(blobItem.Name);
-
-                        // Delete the blob
-                        await blobClient.DeleteIfExistsAsync();
-                    }
-
-                    // If the AI Search endpoint and API key are provided, delete the data source for the uploaded file
-                    await DeleteAISearchDataSource(container);
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            ShowAlert($"An error occurred while deleting the files from Azure Blob Storage. {ex.Message}", AlertTypeEnum.danger);
-        }
-    }
-
-
-
-    //Generate valid blob names based on original filename
-    private string ConvertToValidBlobName(string filename)
-    {
-        // Replace invalid characters with a hyphen
-        string validBlobName = Regex.Replace(filename, @"[^a-zA-Z0-9\-]", "-");
-
-        // Ensure the blob name is within the allowed length (1-1024 characters)
-        if (validBlobName.Length > 1024)
-        {
-            validBlobName = validBlobName.Substring(0, 1024);
-        }
-
-        return validBlobName;
-    }
-
-    //Generate valid container names based on the passed in name.
-    private string ConvertToValidContainerName(string name)
-    {
-        // Convert to lowercase
-        string validContainerName = name.ToLower();
-
-        // Replace invalid characters with a hyphen
-        validContainerName = Regex.Replace(validContainerName, @"[^a-z0-9\-]", "-");
-
-        // Remove consecutive dashes
-        validContainerName = Regex.Replace(validContainerName, @"-+", "-");
-
-        // Trim dashes from the start and end
-        validContainerName = validContainerName.Trim('-');
-
-        // Ensure the container name is within the allowed length (3-63 characters)
-        if (validContainerName.Length < 3)
-        {
-            validContainerName = validContainerName.PadRight(3, 'a'); // Pad with 'a' to meet minimum length
-        }
-        else if (validContainerName.Length > 63)
-        {
-            validContainerName = validContainerName.Substring(0, 63);
-        }
-
-        return validContainerName;
     }
 
     private void ProcessImage(MemoryStream memoryStream, string filename)
@@ -727,73 +605,6 @@ else
 
         }
     }
-
-    private async Task CreateAISearchDataSource(string containerName)
-    {
-        try
-        {
-            if (!string.IsNullOrEmpty(aiSearchEndpoint) && !string.IsNullOrEmpty(aiSearchApiKey))
-            {
-                // Create a new Azure AI Search data source
-                var client = new SearchIndexerClient(new Uri(aiSearchEndpoint), new AzureKeyCredential(aiSearchApiKey));
-                var dataSourceName = $"azureblob-{containerName}";
-
-                // Check if the data source already exists
-                try
-                {
-                    var existingDataSource = await client.GetDataSourceConnectionAsync(dataSourceName);
-                    if (existingDataSource != null)
-                    {
-                        Console.WriteLine($"Data source '{dataSourceName}' already exists.");
-                        return;
-                    }
-                }
-                catch (RequestFailedException ex) when (ex.Status == 404)
-                {
-                    // Data source does not exist, proceed to create it.
-                    var dataSource = new SearchIndexerDataSourceConnection(
-                        name: dataSourceName,
-                        type: SearchIndexerDataSourceType.AzureBlob,
-                        connectionString: azureStorageConnectionString,
-                        container: new SearchIndexerDataContainer(containerName))
-                        {
-                            // Configure change detection policy
-                            DataChangeDetectionPolicy = new HighWaterMarkChangeDetectionPolicy("metadata_storage_last_modified") // Use the required column
-                        };
-
-                    await client.CreateOrUpdateDataSourceConnectionAsync(dataSource);
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            ShowAlert($"An error occurred while creating the Azure AI Search data source. {ex.Message}", AlertTypeEnum.danger);
-            Console.WriteLine($"CreateAISearchDataSource error: {ex.Message}");
-        }
-    }
-
-    private async Task DeleteAISearchDataSource(string containerName)
-    {
-        try
-        {
-            if (!string.IsNullOrEmpty(aiSearchEndpoint) && !string.IsNullOrEmpty(aiSearchApiKey))
-            {
-                var client = new SearchIndexerClient(new Uri(aiSearchEndpoint), new AzureKeyCredential(aiSearchApiKey));
-                await client.DeleteDataSourceConnectionAsync($"azureblob-{containerName}");
-            }
-        }
-        catch (RequestFailedException ex) when (ex.Status == 404)
-        {
-            // Data source not found, handle gracefully.  This is not a critical error.
-            Console.WriteLine($"Data source not found: {ex.Message}");
-        }
-        catch (Exception ex)
-        {
-            ShowAlert($"An error occurred while deleting the Azure AI Search data source. {ex.Message}", AlertTypeEnum.danger);
-            Console.WriteLine($"DeleteAISearchDataSource error: {ex.Message}");
-        }
-    }
-
 
     private void ShowAlert(string message, AlertTypeEnum alertType= AlertTypeEnum.info)
     {
