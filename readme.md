@@ -15,8 +15,8 @@ This solution utilizes several open source libraries to help with document inges
 - **Data Interaction**: Enables users to chat with their data using Azure OpenAI models.
 - **Deployment Flexibility**: Can be operated locally or hosted on Azure App Service.
 - **Authentication**: Supports EasyAuth authentication when hosted on Azure.
-- **Document Upload**: Allows users to upload TXT, DOCX, PPTX, or PDF documents into the knowledge base. When using Azure App Service with EasyAuth, uploaded knowledge is associated exclusively with the user.
-- **Image Analysis**: Supports image uploads for querying, compatible with models like GPT-4.
+- **Document Upload**: Allows users to upload TXT, DOCX, XLSX, PPTX, or PDF documents into the knowledge base. When using Azure App Service with EasyAuth, uploaded knowledge is associated exclusively with the user.
+- **Image Analysis**: Supports image uploads for querying, compatible with models like GPT-4. When using models that don't support images and you have Azure Document Intelligence configured, it will OCR uploaded images and store the results as knowledge.
 - **Streaming Responses**: Provides streaming chat results with the option to stop responses.
 - **Data Management**: Offers the ability to clear chat history and delete data stored in the user's knowledge base.
 
