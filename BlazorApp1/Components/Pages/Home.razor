@@ -19,14 +19,11 @@
 @using BlazorAIChat.Utils
 @using BlazorAIChat.Services
 @using Microsoft.AspNetCore.Components.Authorization
-@using DocumentFormat.OpenXml.Packaging
-@using DocumentFormat.OpenXml.Wordprocessing
 @using MarkdownSharp
 @using Microsoft.SemanticKernel
 @using Microsoft.SemanticKernel.ChatCompletion
 @using Microsoft.SemanticKernel.Connectors.OpenAI
 @using Microsoft.SemanticKernel.Connectors.Sqlite
-@using Microsoft.SemanticKernel.Connectors.AzureCosmosDBMongoDB
 @using Microsoft.SemanticKernel.Embeddings
 @using Microsoft.SemanticKernel.Memory
 @using Microsoft.KernelMemory
@@ -35,7 +32,7 @@
 @using System.Text.Json
 @using System.Net.Http.Headers
 @using System.Security.Claims
-@using UglyToad.PdfPig
+
 
 <PageTitle>Azure Open AI Chat Demo</PageTitle>
 <Alert AlertType="@alertType" AlertMessage="@alertMessage" OnClose="CloseAlert" />
@@ -92,13 +89,19 @@ else
                             <h4 class="card-title">Azure OpenAI Chat</h4>
                             <span @onclick="GoToProfile" class="badge bg-success ms-auto me-2 align-self-center">@currentUser.Name [@(Enum.GetName(currentUser.Role))]</span>
                             <!-- Show which memory store that is being used -->
-                            @if (string.IsNullOrEmpty(cosmosDbConn))
+                            @if (string.IsNullOrEmpty(postgreSqlDbConn))
                             {
-                                <span class="badge bg-info ms-2 align-self-center">SQLite Memory Store</span>
+                                <span class="badge bg-info ms-2 align-self-center">File Memory Store</span>
                             }
                             else
                             {
-                                <span class="badge bg-info ms-2 align-self-center">Azure CosmosDB Memory Store</span>
+                                <span class="badge bg-info ms-2 align-self-center">Azure PostgreSQL Memory Store</span>
+                            }
+
+                            <!-- Show document intelligence badge if used -->
+                            @if (!string.IsNullOrEmpty(documentIntelligenceEndpoint) && !string.IsNullOrEmpty(documentIntelligenceApiKey))
+                            {
+                                <span class="badge bg-info ms-2 align-self-center">Azure Document Intelligence</span>
                             }
 
                             <!-- Show admin and logout buttons if needed -->
@@ -161,19 +164,11 @@ else
     bool isResponding = false;
     bool stopResponding = false;
 
-    SqliteMemoryStore? sqlLiteMemoryStore;
-    AzureCosmosDBMongoDBMemoryStore? cosmosDBMemoryStore;
-
-    SemanticTextMemory? semanticMemory;
-    int embedDimensions = 1536;
-    string cosmosDbConn = string.Empty;
-
     private ElementReference chatWindow;
     private InputFile? inputFile;
 
     bool RequireEasyAuth = false;
-
-    User currentUser = new User();
+    User currentUser = new User() { Id=string.Empty };
 
     private string alertMessage { get; set; } = string.Empty;
     private string alertType { get; set; } = string.Empty;
@@ -193,6 +188,8 @@ else
     string azureStorageConnectionString = string.Empty;
     string aiSearchEndpoint = string.Empty;
     string aiSearchApiKey = string.Empty;
+    string cosmosDbConn = string.Empty;
+    string postgreSqlDbConn = string.Empty;
 
     protected override async Task OnInitializedAsync()
     {
@@ -213,8 +210,7 @@ else
             var apiKey = Configuration["AzureOpenAIChatCompletion:ApiKey"] ?? string.Empty;
             var model = Configuration["AzureOpenAIChatCompletion:Model"] ?? string.Empty;
             var embedModel = Configuration["AzureOpenAIEmbedding:Model"] ?? string.Empty;
-            embedDimensions = int.Parse(Configuration["AzureOpenAIEmbedding:EmbeddingDimensions"] ?? "1536");
-            cosmosDbConn = Configuration["ConnectionStrings:CosmosDB"] ?? string.Empty;
+            postgreSqlDbConn = Configuration["ConnectionStrings:PostgreSQL"] ?? string.Empty;
             chatModelSupportsImages = bool.Parse(Configuration["AzureOpenAIChatCompletion:SupportsImages"] ?? "false");
             RequireEasyAuth = bool.Parse(Configuration["RequireEasyAuth"] ?? "false");
             systemMessage = Configuration["SystemMessage"] ?? systemMessage;
@@ -252,9 +248,9 @@ else
             kernel = builder.Build();
 
             //get current file directory
-            var currentDirectory = "c:\\temp\\aitest";
+            var knnDirectory = "KNN";
 
-            kernelMemory = new KernelMemoryBuilder()
+            var kernelMemoryBuilder = new KernelMemoryBuilder()
             .WithAzureOpenAITextEmbeddingGeneration(new AzureOpenAIConfig
                 {
                     APIType = AzureOpenAIConfig.APITypes.EmbeddingGeneration,
@@ -270,28 +266,42 @@ else
                     Deployment = model,
                     Auth = AzureOpenAIConfig.AuthTypes.APIKey,
                     APIKey = apiKey,
-                })
-            .WithSimpleFileStorage(new Microsoft.KernelMemory.DocumentStorage.DevTools.SimpleFileStorageConfig() { StorageType = Microsoft.KernelMemory.FileSystem.DevTools.FileSystemTypes.Disk, Directory = currentDirectory })
-            .WithSimpleVectorDb(new Microsoft.KernelMemory.MemoryStorage.DevTools.SimpleVectorDbConfig { StorageType = Microsoft.KernelMemory.FileSystem.DevTools.FileSystemTypes.Disk, Directory = currentDirectory })
-            .Build<MemoryServerless>();
+                });
 
-
-            //Get reference to the chat completion service
-            chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
-
-            //Configure the memory store
-            if (string.IsNullOrEmpty(cosmosDbConn))
+            //Configure the memory store to use Cosmos DB
+            if (string.IsNullOrEmpty(postgreSqlDbConn))
             {
-                sqlLiteMemoryStore = await SqliteMemoryStore.ConnectAsync("memory.sqlite"); 
-                semanticMemory = new SemanticTextMemory(sqlLiteMemoryStore, kernel.GetRequiredService<ITextEmbeddingGenerationService>());
+                //Use file memory store
+                kernelMemoryBuilder = kernelMemoryBuilder
+                    .WithSimpleVectorDb(new Microsoft.KernelMemory.MemoryStorage.DevTools.SimpleVectorDbConfig { StorageType = Microsoft.KernelMemory.FileSystem.DevTools.FileSystemTypes.Disk, Directory = knnDirectory });
 
             }
             else
             {
-                AzureCosmosDBMongoDBConfig dBConfig = new AzureCosmosDBMongoDBConfig(embedDimensions);
-                cosmosDBMemoryStore = new AzureCosmosDBMongoDBMemoryStore(cosmosDbConn, "embeddings", dBConfig);
-                semanticMemory = new SemanticTextMemory(cosmosDBMemoryStore, kernel.GetRequiredService<ITextEmbeddingGenerationService>());
+                //Use PostgreSQL DB memory store
+                //NOTE: You must have enabled pgvector extension in your PostgreSQL database for this to work.
+                kernelMemoryBuilder = kernelMemoryBuilder.WithPostgresMemoryDb(new PostgresConfig()
+                {
+                    ConnectionString= postgreSqlDbConn    
+                });
             }
+
+            //Configure document intelligence if configured
+            if (!string.IsNullOrEmpty(documentIntelligenceEndpoint) && !string.IsNullOrEmpty(documentIntelligenceApiKey))
+            {
+                kernelMemoryBuilder = kernelMemoryBuilder.WithAzureAIDocIntel(new AzureAIDocIntelConfig()
+                    {
+                        Endpoint = documentIntelligenceEndpoint,
+                        APIKey = documentIntelligenceApiKey,
+                        Auth= AzureAIDocIntelConfig.AuthTypes.APIKey
+                    });
+
+            }
+
+            kernelMemory = kernelMemoryBuilder.Build<MemoryServerless>();
+
+            //Get reference to the chat completion service
+            chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
 
             //Clear the chat history and set the system message
             internalClear();
@@ -329,14 +339,9 @@ else
                 //If an Azure Storage connection string has been provided, delete the files from Azure Blob Storage
                 await DeleteFilesFromBlobForUser();
 
-                if (string.IsNullOrEmpty(cosmosDbConn))
-                {
-                    await sqlLiteMemoryStore!.DeleteCollectionAsync(currentUser.Id);
-                }
-                else
-                {
-                    await cosmosDBMemoryStore!.DeleteCollectionAsync(currentUser.Id);
-                }
+                if (kernelMemory!=null)
+                    await kernelMemory.DeleteIndexAsync(currentUser.Id.Replace(" ", ""));
+   
                 ShowAlert("All documents have been removed.", AlertTypeEnum.info);
             }
         }
@@ -364,55 +369,37 @@ else
                 //The user previously requested to stop responding, so reset the flag so it can respond to the new message
                 stopResponding = false;
 
-                var answer = await kernelMemory!.AskAsync(message, currentUser.Id.Replace(" ", ""));
+                //We do this to ensure that the user message is displayed in the chat window since looking up kernelMemory may take a moment. We
+                //want the UI to feel responsive.
+                string messageToProcess = message;
+                chatHistory += "<br/><b>user</b>: " + message;
+                message = string.Empty;
+                StateHasChanged();
+
+                //Look up possible knowledge from the memory store
+                var answer = await kernelMemory!.AskAsync(messageToProcess, currentUser.Id.Replace(" ", ""));
 
                 if (!answer.NoResult)
                 {
                     history.AddUserMessage("Here is some supporting information:");
                     history.AddUserMessage(answer.Result);
                     history.AddUserMessage("----------------------------------");
-     
-
                 }
 
                 //Save the user message to the memory store
                 if (uploadImageByteArray==null)
                 {
-                    history.AddUserMessage(message);
-
+                    history.AddUserMessage(messageToProcess);
                 }
                 else
                 {
                     var sendMessage = new ChatMessageContentItemCollection
                     {
-                        new TextContent(message),
+                        new TextContent(messageToProcess),
                         new ImageContent(){Data=uploadImageByteArray, MimeType = uploadImageType }
                     };
                     history.AddUserMessage(sendMessage);
                 }
-
-                chatHistory += "<br/><b>user</b>: " + message;
-
-                //Do we have any memories to augment the chat completion?
-                //var results = semanticMemory!.SearchAsync(currentUser.Id, message, 10);
-
-
-
-                // bool addedMemory = false;
-                // await foreach (var result in results)
-                // {
-                //     if (!addedMemory)
-                //     {
-                //         history.AddUserMessage("I found some memories that might help you answer the question:");
-                //         addedMemory = true;
-                //     }
-                //     history.AddUserMessage(result.Metadata.Text);
-                //     Console.WriteLine($"Memory: {result.Metadata.Text}");
-                // }
-
-
-                message = string.Empty;
-                StateHasChanged();
 
                 await StreamChatCompletionAsync(history, chatCompletionService);
                 await js.InvokeVoidAsync("scrollToBottom", chatWindow);
@@ -513,7 +500,6 @@ else
                 return;
             }
 
-
             // Only upload PDFs, DOCX, and TXT files
             var fileName = selectedFile.Name.ToLower();
             if (!(fileName.EndsWith(".pdf") || fileName.EndsWith(".docx") || fileName.EndsWith(".pptx") || fileName.EndsWith(".txt") ||
@@ -525,7 +511,6 @@ else
                 ShowAlert($"The file {selectedFile.Name} is not a supported file type. {alertMessage}", AlertTypeEnum.warning);
                 return;
             }
-
 
             isFileInputDisabled = true;
             StateHasChanged();
@@ -541,30 +526,18 @@ else
             bool useAzureAISearch = !string.IsNullOrEmpty(aiSearchApiKey) && !string.IsNullOrEmpty(aiSearchEndpoint);
 
             //Check to see how we need to process the files. If we are using Azure AI Search, then we will not process the PDF, DOCX, or TXT files
-            // if (fileName.EndsWith(".docx") && !useAzureAISearch)
-            // {
-            //     await ProcessDocxFile(memoryStream);
-            // }
-            // else if (fileName.EndsWith(".pdf") && !useAzureAISearch)
-            // {
-            //     await ProcessPdfFile(memoryStream);
-            // }
-            // else if (fileName.EndsWith(".txt") && !useAzureAISearch)
-            // {
-            //     await ProcessTxtFile(memoryStream);
-            // }
-            // else if (fileName.EndsWith(".jpg") || fileName.EndsWith(".jpeg") || fileName.EndsWith(".png") || fileName.EndsWith(".gif"))
-            // {
-            //     ProcessImage(memoryStream, fileName);
-            // }
-
             if (fileName.EndsWith(".jpg") || fileName.EndsWith(".jpeg") || fileName.EndsWith(".png") || fileName.EndsWith(".gif"))
             {
                 ProcessImage(memoryStream, fileName);
             }
             else
             {
-                await ProcessWithKernelMemory(memoryStream, fileName);
+                if (!useAzureAISearch)
+                    await ProcessWithKernelMemory(memoryStream, fileName);
+                else
+                {
+                    //TODO - push the file to Azure Blob Storage and create a data source for it in Azure AI Search
+                }
             }
 
             if (inputFile != null)
@@ -736,104 +709,6 @@ else
         }
     }
 
-    private async Task ProcessDocxFile(MemoryStream memoryStream)
-    {
-        try
-        {
-            //Ensure we are at the start of the memoryStream
-            memoryStream.Position = 0;
-
-            //Use OpenXML SDK to process the document's paragraphs and save them to the memory store
-            using (WordprocessingDocument wordDoc = WordprocessingDocument.Open(memoryStream, false))
-            {
-                Body? body = wordDoc.MainDocumentPart?.Document.Body;
-                if (body != null)
-                {
-                    var paragraphs = body.Elements<Paragraph>();
-                    foreach (var paragraph in paragraphs)
-                    {
-                        if (!string.IsNullOrEmpty(paragraph.InnerText) && semanticMemory != null)
-                        {
-                            await semanticMemory!.SaveInformationAsync(currentUser.Id, paragraph.InnerText, Guid.NewGuid().ToString());
-                        }
-                    }
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            ShowAlert($"An error occurred while processing the DOCX document. {ex.Message}", AlertTypeEnum.danger);
-            Console.WriteLine($"ProcessDocxFile error: {ex.Message}");
-        }
-    }
-
-    private async Task ProcessPdfFile(MemoryStream memoryStream)
-    {
-        try
-        {
-            //Ensure we are at the start of the memoryStream
-            memoryStream.Position = 0;
-
-
-            if (string.IsNullOrEmpty(documentIntelligenceEndpoint) || string.IsNullOrEmpty(documentIntelligenceApiKey))
-            {
-                using var pdfDocument = PdfDocument.Open(memoryStream);
-                foreach (var page in pdfDocument.GetPages())
-                {
-                    string pageText = page.Text;
-                    var paragraphs = SplitIntoParagraphs(pageText);
-                    foreach (var paragraph in paragraphs)
-                    {
-                        if (!string.IsNullOrEmpty(paragraph) && semanticMemory != null)
-                        {
-                            await semanticMemory.SaveInformationAsync(currentUser.Id, paragraph, Guid.NewGuid().ToString());
-                        }
-                    }
-                }
-            }
-            else
-            {
-                //Use the Document Intelligence API via SDK to process the document's paragraphs and save them to the memory store
-                await ProcessDocWithDocIntelligence(memoryStream);
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"ProcessPdfFile error: {ex.Message}");
-            ShowAlert($"An error occurred while processing the PDF document. {ex.Message}", AlertTypeEnum.danger);
-        }
-    }
-
-
-    private async Task ProcessTxtFile(MemoryStream memoryStream)
-    {
-        try
-        {
-            //Ensure we are at the start of the memoryStream
-            memoryStream.Position = 0;
-
-
-            using (StreamReader reader = new StreamReader(memoryStream))
-            {
-                string text = await reader.ReadToEndAsync();
-                var paragraphs = SplitIntoParagraphs(text);
-                foreach (var paragraph in paragraphs)
-                {
-                    if (!string.IsNullOrEmpty(paragraph) && semanticMemory != null)
-                    {
-                        await semanticMemory.SaveInformationAsync(currentUser.Id, paragraph, Guid.NewGuid().ToString());
-                    }
-                }
-            }
-
-        }
-        catch (Exception ex)
-        {
-            ShowAlert($"An error occurred while processing the document. {ex.Message}", AlertTypeEnum.danger);
-            Console.WriteLine($"ProcessTxtFile error: {ex.Message}");
-        }
-    }
-
     private async Task ProcessWithKernelMemory(MemoryStream memoryStream, string filename)
     {
         if (kernelMemory != null)
@@ -851,66 +726,6 @@ else
             }
 
         }
-    }
-
-
-    private async Task ProcessDocWithDocIntelligence(MemoryStream memoryStream)
-    {
-        if (memoryStream == null) throw new ArgumentNullException(nameof(memoryStream));
-        if (string.IsNullOrEmpty(documentIntelligenceEndpoint)) throw new ArgumentNullException(nameof(documentIntelligenceEndpoint));
-        if (string.IsNullOrEmpty(documentIntelligenceApiKey)) throw new ArgumentNullException(nameof(documentIntelligenceApiKey));
-        if (semanticMemory == null) throw new ArgumentNullException(nameof(semanticMemory));
-
-        try
-        {
-            //Ensure we are at the start of the memoryStream
-            memoryStream.Position = 0;
-
-            var client = new DocumentIntelligenceClient(new Uri(documentIntelligenceEndpoint), new AzureKeyCredential(documentIntelligenceApiKey));
-            var content = new AnalyzeDocumentContent()
-                {
-                    Base64Source = await BinaryData.FromStreamAsync(memoryStream)
-                };
-
-            var operation = await client.AnalyzeDocumentAsync(WaitUntil.Completed, "prebuilt-layout", content);
-            var result = operation.Value;
-
-            foreach (DocumentParagraph paragraph in result.Paragraphs)
-            {
-                if (!string.IsNullOrEmpty(paragraph.Content))
-                {
-                    await semanticMemory.SaveInformationAsync(currentUser.Id, paragraph.Content, Guid.NewGuid().ToString());
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            ShowAlert($"An error occurred processing the document with Azure Document Intelligence: {ex.Message}", AlertTypeEnum.danger);
-            Console.WriteLine($"An error occurred processing the document with Azure Document Intelligence: {ex.Message}");
-        }
-    }
-
-
-    private List<string> SplitIntoParagraphs(string text)
-    {
-        var paragraphs = new List<string>();
-        try
-        {
-            var matches = Regex.Split(text, @"(\r\n|\n|\r){2,}");
-            foreach (var match in matches)
-            {
-                if (!string.IsNullOrWhiteSpace(match))
-                {
-                    paragraphs.Add(match.Trim());
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            ShowAlert($"Error splitting text into paragraphs: {ex.Message}", AlertTypeEnum.danger);
-            Console.WriteLine($"Error splitting text into paragraphs: {ex.Message}");
-        }
-        return paragraphs;
     }
 
     private async Task CreateAISearchDataSource(string containerName)

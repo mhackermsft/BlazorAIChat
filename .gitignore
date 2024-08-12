@@ -366,3 +366,4 @@ FodyWeavers.xsd
 /BlazorApp1/ConfigDatabase.db
 /BlazorApp1/ConfigDatabase.db-shm
 /BlazorApp1/ConfigDatabase.db-wal
+/BlazorApp1/KNN/

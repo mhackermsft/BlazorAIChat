@@ -64,4 +64,10 @@ app.UseAuthorization();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
+//Before we start the app, ensure that the KNN folder exists on the filesystem
+if (!Directory.Exists("KNN"))
+{
+    Directory.CreateDirectory("KNN");
+}
+
 app.Run();

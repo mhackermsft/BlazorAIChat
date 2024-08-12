@@ -2,21 +2,20 @@
 ##### BlazorAIChat: AI-Powered Chat Application
 
 ## Overview
-This is a sample .NET 8 Blazor Interactive Server application for chatting with Azure OpenAI Models. Users may upload TXT, DOCX or PDF documents to a knowledge base for the AI to use when responding. If configured, it can also upload images for those AI models that support images in chat.
+This is a sample .NET 8 Blazor Interactive Server application for chatting with Azure OpenAI Models. Users may upload TXT, DOCX, PPTX or PDF documents to a knowledge base for the AI to use when responding. If configured, it can also upload images for those AI models that support images in chat.
 
 ## Components
 This solution utilizes several open source libraries to help with document ingestion and chat display. These projects include:
-* PDFPig
-* OpenXML
 * MarkdownSharp
 * Semantic Kernel
+* Semantic Memory
 
 ## Features
 - **AI Integration**: Utilizes advanced AI models to provide intelligent responses.
 - **Data Interaction**: Enables users to chat with their data using Azure OpenAI models.
 - **Deployment Flexibility**: Can be operated locally or hosted on Azure App Service.
 - **Authentication**: Supports EasyAuth authentication when hosted on Azure.
-- **Document Upload**: Allows users to upload TXT, DOCX, or PDF documents into the knowledge base. When using Azure App Service with EasyAuth, uploaded knowledge is associated exclusively with the user.
+- **Document Upload**: Allows users to upload TXT, DOCX, PPTX, or PDF documents into the knowledge base. When using Azure App Service with EasyAuth, uploaded knowledge is associated exclusively with the user.
 - **Image Analysis**: Supports image uploads for querying, compatible with models like GPT-4.
 - **Streaming Responses**: Provides streaming chat results with the option to stop responses.
 - **Data Management**: Offers the ability to clear chat history and delete data stored in the user's knowledge base.
@@ -40,7 +39,7 @@ For more accurate document ingestion, processing, and semantic search it is reco
 Note: If deployed on an Azure App Service with EasyAuth enabled, the uploaded documents become knowledge for only the user who uploaded the document. It does not share the knowledge with other users of the solution.  If you are not using EasyAuth, you are running local, or deployed the app on another .NET web host, all of the users will be considered guests and all of the knowledge uploaded will be shared.
 
 ## Requirements
-- **Azure Subscription**: Must include at least one Azure OpenAI chat model and one Azure OpenAI embedding model deployed. Optionally you can use Azure Cosmos DB for MongoDB for the knowledge storage. 
+- **Azure Subscription**: Must include at least one Azure OpenAI chat model and one Azure OpenAI embedding model deployed. Optionally you can use Azure PostgreSQL for the knowledge storage. 
 - **Deployment Options**: 
   - **Local**: Can be run locally.
   - **Azure App Service**: Can be published to an Azure App Service. If deployed on Azure App Service, EasyAuth can be enabled for authentication.
@@ -57,18 +56,14 @@ The appsettings.json file has a few configuration parameters that must be set fo
     "SupportsImages": false
   },
   "AzureOpenAIEmbedding": {
-    "Model": "",
-    "Dimensions": 1536
+    "Model": ""
   },
   "RequireEasyAuth": true,
   "SystemMessage" : "You are a helpful AI assistant. Respond in a friendly and professional tone.",
   "ConnectionStrings": {
-    "CosmosDB": "",
+    "PostgreSQL": "",
     "AzureStorage:"",
     "ConfigDatabase": "Data Source=ConfigDatabase.db"
-  },
-  "CosmosDB": {
-    "DatabaseName": ""
   },
   "DocumentIntelligence": {
   "Endpoint": "",
@@ -86,13 +81,10 @@ The appsettings.json file has a few configuration parameters that must be set fo
 
 - **AzureOpenAIEmbedding Configuration**: 
   - Specify the deployed embedding model you plan to use.
-  - If using Azure Cosmos DB for MongoDB as your knowledge store, you must provide the dimensions returned by the embedding model. For the `text-embedding-ada-002` model this is 1536.
   - Both the chat and embedding models are assumed to be accessed through the same Azure OpenAI endpoint and API key.
 
-- **Cosmos DB (optional)**:
-If you would like to use Cosmos DB in place of SQLite for memory storage, you must manually deploy an Azure Cosmos DB for MongoDB (vcore) instance and configure the following settings.
-  - Specify the connection string to the Cosmos DB for MongoDB instance.
-  - Specify a database name. This database should not already be created.
+- **PostgreSQL (optional)**:
+If you would like to use PostgreSQL in place of files for knowledge storage, you must manually deploy a PostgreSQL instance and configure the connection string. Note: You must enable the pgvector extension to use PostgreSQL.
 
 - **Azure Document Intelligence (optional)**
 You may choose to optionally manually deploy Azure Document Intelligence for PDF text extraction instead of using the build in PDFPig components. Provide both the endpoint and API key of your Azure Document Intelligence instance to enable.
@@ -169,7 +161,7 @@ If authorization is not enabled, then any authenticated user will be able to uti
 ## Knowledge Storage
 All uploaded knowledge is stored by default in a SQLite database locally on the application host. The file is called memory.sqlite and is NOT encrypted. It is important to protect this file if any sensitive content is uploaded to the solution. 
 
-Optionally you can configure the demo to utilize an Azure Cosmos DB for MongoDB instance as the knowledge store.
+Optionally you can configure the demo to utilize an Azure PostgreSQL instance as the knowledge store.
 
 Users can use the clear button in the application to delete all of their uploaded knowledge. They currently cannot choose specific pieces of knowledge to delete.
 

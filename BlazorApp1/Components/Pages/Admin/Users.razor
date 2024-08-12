@@ -98,7 +98,7 @@
 
 @code {
     private List<User> users = new List<User>();
-    private User selectedUser = new User();
+    private User selectedUser = new User() { Id=string.Empty };
     private User? currentUser;
 
     protected override async Task OnInitializedAsync()
@@ -132,7 +132,7 @@
 
     private void CancelEdit()
     {
-        selectedUser = new User();
+        selectedUser = new User() {Id=string.Empty };
         StateHasChanged();
     }
 
@@ -148,7 +148,7 @@
 
             DbContext.Update(selectedUser);
             await DbContext.SaveChangesAsync();
-            selectedUser = new User();
+            selectedUser = new User() { Id=string.Empty };
             users = await DbContext.Users.ToListAsync();
             StateHasChanged();
         }
