@@ -18,7 +18,9 @@
 
     <script>
         function scrollToBottom(element) {
-            element.scrollTop = element.scrollHeight;
+            var elem = document.getElementById(element);
+            elem.scrollTop = elem.scrollHeight;
+            return true;
         }
 
         function clearElementValue(element) {

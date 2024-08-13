@@ -4,6 +4,9 @@
 @inject IJSRuntime js
 @inject NavigationManager NavigationManager
 @inject AuthenticationStateProvider AuthenticationStateProvider
+@inject CosmosDbService cosmosDbService
+@inject AIChatDBContext dbContext
+@inject UserService userService
 
 @using Azure
 @using Azure.AI.DocumentIntelligence
@@ -11,9 +14,6 @@
 @using Azure.Search.Documents.Indexes.Models
 @using Azure.Storage.Blobs
 @using Azure.Storage.Blobs.Models
-@inject AIChatDBContext dbContext
-@inject UserService userService
-
 @using BlazorAIChat.Components.Shared
 @using BlazorAIChat.Models
 @using BlazorAIChat.Utils
@@ -101,6 +101,7 @@ else
                                     <path d="m182.49 96.66-.07.05.07-.04Z" />
                                 </svg>
                                 <span class="navbar-brand mb-0 ms-1 h1">Blazor Azure OpenAI Chat</span>
+                                @currentSession?.Id
                             </div>
                         </div>
                     </div>
@@ -174,10 +175,7 @@ else
                                                 </div>
                                                 <div class="toast-body">
                                                     <i class="bi bi-grip-vertical mr-2 text-black-50"></i>
-                                                    @{
-                                                        MarkupString prompt = FixupText(msg.Prompt);
-                                                    }
-                                                    @prompt
+                                                     @(new MarkupString(msg.Prompt))
                                                 </div>
                                             </div>
                                             <div class="toast fade show w-75 rounded-3 align-self-end">
@@ -187,10 +185,9 @@ else
                                                 </div>
                                                 <div class="toast-body">
                                                     <i class="bi bi-grip-vertical mr-2 text-black-50"></i>
-                                                    @{
-                                                        MarkupString completion = FixupText(msg.Completion);
-                                                    }
-                                                    @completion
+                                                    <span class="display: inline">
+                                                        @(new MarkupString(StripOuterParagraphTags(msg.Completion)))
+                                                    </span>
                                                 </div>
                                             </div>
                                         }
@@ -203,7 +200,7 @@ else
                         @if (currentSession is not null && currentSession?.SessionId != Models.Constants.EMPTY_SESSION)
                         {
                             <div class="input-group">
-                                <input type="text" class="form-control" placeholder="Enter your message" disabled="@isResponding" @bind-value="message" @bind-value:event="oninput" @onkeydown="HandleKeyDown" />
+                                <input type="text" class="form-control" placeholder="Enter your message" disabled="@isResponding" @bind-value="userMessage" @bind-value:event="oninput" @onkeydown="HandleKeyDown" />
                                 <button class="btn btn-primary" @onclick="SendMessage">Send</button>
                                 <InputFile @ref="inputFile" class="btn btn-warning" OnChange="HandleFileSelected" disabled="@(isFileInputDisabled||isResponding)" />
                                 <button class="btn btn-secondary" @onclick="Clear">@clearCancelText</button>
@@ -230,9 +227,8 @@ else
     private Config config = new Config(){ Id=Guid.Empty};
 
     private IBrowserFile? selectedFile = null;
-    private string chatHistory = string.Empty;
     private string newResponse = string.Empty;
-    private string message = string.Empty;
+    private string userMessage = string.Empty;
     private IKernelBuilder? builder = null;
     private Kernel? kernel = null;
     private MemoryServerless? kernelMemory = null;
@@ -395,6 +391,9 @@ else
             //Get reference to the chat completion service
             chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
 
+            //Get the current session chat messages
+            await ReloadChatMessagesAsync();
+
             //Clear the chat history and set the system message
             internalClear();
         }
@@ -436,7 +435,7 @@ else
 
                 if (kernelMemory!=null)
                     await kernelMemory.DeleteIndexAsync(currentUser.Id.Replace(" ", ""));
-   
+
                 ShowAlert("All documents have been removed.", AlertTypeEnum.info);
             }
         }
@@ -444,10 +443,10 @@ else
 
     private void internalClear()
     {
-        chatHistory = welcomeMessage;
+        messagesInChat = new List<Message>();
         uploadImageByteArray = null;
         uploadImageType = string.Empty;
-        message = string.Empty;
+        userMessage = string.Empty;
         history = new ChatHistory();
         history.AddSystemMessage(systemMessage);
         StateHasChanged();
@@ -457,17 +456,19 @@ else
     {
         try
         {
-            if (!string.IsNullOrWhiteSpace(message) && chatCompletionService != null)
+            if (!string.IsNullOrWhiteSpace(userMessage) && chatCompletionService != null && currentSession!=null)
             {
 
                 //The user previously requested to stop responding, so reset the flag so it can respond to the new message
                 stopResponding = false;
 
+                Message message = new Message(currentSession.Id, userMessage);
+                messagesInChat.Add(message);
+
                 //We do this to ensure that the user message is displayed in the chat window since looking up kernelMemory may take a moment. We
                 //want the UI to feel responsive.
-                string messageToProcess = message;
-                chatHistory += "<br/><b>user</b>: " + message;
-                message = string.Empty;
+                string messageToProcess = userMessage;
+                userMessage = string.Empty;
                 StateHasChanged();
 
                 //Look up possible knowledge from the memory store
@@ -495,8 +496,8 @@ else
                     history.AddUserMessage(sendMessage);
                 }
 
-                await StreamChatCompletionAsync(history, chatCompletionService);
-                await js.InvokeVoidAsync("scrollToBottom", chatWindow);
+                await StreamChatCompletionAsync(history,message, chatCompletionService);
+                await js.InvokeVoidAsync("scrollToBottom", "MessagesInChatdiv");
 
             }
         }
@@ -507,7 +508,7 @@ else
         }
     }
 
-    public async Task StreamChatCompletionAsync(ChatHistory history, IChatCompletionService chatCompletionService)
+    public async Task StreamChatCompletionAsync(ChatHistory history,Message message, IChatCompletionService chatCompletionService)
     {
         try
         {
@@ -531,17 +532,22 @@ else
                     markdownBuilder.Append(chatUpdate.Content);
                     string partialHTML = md.Transform(markdownBuilder.ToString());
 
+                    message.Completion = FixupTextForCode(partialHTML.ToString());
                     newResponse = "<b>assistant</b>: " + partialHTML.ToString();
                     // Scroll to the bottom of the chat window
-                    await js.InvokeVoidAsync("scrollToBottom", chatWindow);
+                    await js.InvokeVoidAsync("scrollToBottom", "MessagesInChatdiv");
                     StateHasChanged();
                 }
             }
             newResponse = string.Empty;
-            chatHistory += "<br/><br/><b>assistant</b>: " + md.Transform(finalResults.ToString());
+            message.Completion = md.Transform(FixupTextForCode(finalResults.ToString()));
             history.AddAssistantMessage(finalResults.ToString());
+
+            //store the chat session history
+            await UpdateSessionAndMessage(currentSession?.Id??string.Empty, message);
+
             // Scroll to the bottom of the chat window
-            await js.InvokeVoidAsync("scrollToBottom", chatWindow);
+            await js.InvokeVoidAsync("scrollToBottom", "MessagesInChatdiv");
             isResponding = false;
             clearCancelText = "Clear";
             StateHasChanged();
@@ -659,7 +665,8 @@ else
             uploadImageByteArray = memoryStream.ToArray();
 
             string base64Image = ConvertByteImageToBase64Data(uploadImageByteArray);
-            chatHistory += $"<br/><b>user</b>: <img style='max-height:300px; max-width:300px;' src='{base64Image}'/><br/>";
+            if (messagesInChat!=null && currentSession!=null)
+                messagesInChat.Add(new Message(currentSession.Id, $"<img style='max-height:300px; max-width:300px;' src='{base64Image}'/>","What would you like to know about that image?"));
             StateHasChanged();
             return;
 
@@ -743,19 +750,8 @@ else
         }
     }
 
-    public async void LoadChatEventHandlerAsync(Session session)
+    private string FixupTextForCode(string text)
     {
-        currentSession = session;
-
-        //Need to load the session data into the chat window
-
-
-        await InvokeAsync(StateHasChanged);
-    }
-
-    private MarkupString FixupText(string input)
-    {
-        var text = input.Replace("\n", "<br />");
         Regex rgx = new Regex("```");
         var matches = rgx.Matches(text);
         if (matches.Count() > 0)
@@ -767,9 +763,61 @@ else
                     // odd = end code block tag
                     text = rgx.Replace(text, "</pre></code>", 1, i);
 
-        MarkupString html = new MarkupString(text);
+        return text;
+    }
 
-        return html;
+    public async void LoadChatEventHandlerAsync(Session session)
+    {
+        loadingComplete = false;
+        currentSession = session;
+        await ReloadChatMessagesAsync();
+    }
+
+    public async Task ReloadChatMessagesAsync()
+    {
+        if (currentSession is not null)
+        {
+            messagesInChat = await cosmosDbService.GetSessionMessagesAsync(currentSession.SessionId);
+        }
+
+        //setup chat history object
+        history = new ChatHistory();
+        history.AddSystemMessage(systemMessage);
+        if (messagesInChat != null && messagesInChat.Count > 0)
+        {
+            foreach (var msg in messagesInChat)
+            {
+                history.AddUserMessage(msg.Prompt); 
+                history.AddAssistantMessage(msg.Completion);             
+            }
+        }
+
+
+        loadingComplete = true;
+        StateHasChanged();
+    }
+
+    private async Task UpdateSessionAndMessage(string sessionId, Message chatMessage)
+    {
+
+        //Update the tokens used in the session
+        Session session = await cosmosDbService.GetSessionAsync(sessionId);
+
+        //Insert new message and Update session in a transaction
+        await cosmosDbService.UpsertSessionBatchAsync(session, chatMessage);
+
+    }
+
+    public static string StripOuterParagraphTags(string input)
+    {
+        if (string.IsNullOrEmpty(input))
+        {
+            return input;
+        }
+
+        // Use a regular expression to remove the outer <p> and </p> tags, case-insensitive
+        string pattern = @"^\s*<p>(.*?)<\/p>?\s*$";
+        return Regex.Replace(input, pattern, "$1", RegexOptions.IgnoreCase | RegexOptions.Singleline);
     }
 
     private void GoToProfile()

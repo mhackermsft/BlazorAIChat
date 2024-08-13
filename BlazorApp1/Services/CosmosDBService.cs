@@ -148,11 +148,19 @@ namespace BlazorAIChat.Services
         /// <returns>Chat session item.</returns>
         public async Task<Session> GetSessionAsync(string sessionId)
         {
-            PartitionKey partitionKey = new(sessionId);
-            return await _chatContainer.ReadItemAsync<Session>(
-                partitionKey: partitionKey,
-                id: sessionId
-                );
+            ItemResponse<Session>? results = null;
+            try
+            {
+                PartitionKey partitionKey = new(sessionId);
+                results = await _chatContainer.ReadItemAsync<Session>(
+                    partitionKey: partitionKey,
+                    id: sessionId
+                    );
+            }
+            catch (Exception ex) {
+                Console.WriteLine(ex.Message);
+            }
+            return results;
         }
 
         /// <summary>
