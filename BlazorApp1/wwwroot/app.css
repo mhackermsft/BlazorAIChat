@@ -28,25 +28,6 @@ h1:focus {
     border-color: #929292;
 }
 
-.bottom-docked {
-    position: fixed;
-    bottom: 0;
-    width: 100%;
-    background-color: #f8f9fa;
-    padding: 10px;
-    box-shadow: 0 -2px 5px rgba(0,0,0,0.1);
-}
-
-/* Ensure the container takes the full height of the viewport */
-.full-height {
-    height: 100vh;
-}
-
-/* Make the main content take all available space */
-.flex-grow-1 {
-    flex: 1;
-}
-
 .admin-container {
     padding: 10px;
 }

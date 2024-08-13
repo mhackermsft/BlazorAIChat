@@ -1,0 +1,337 @@
+﻿@using BlazorAIChat.Models
+@using BlazorAIChat.Services
+@using BlazorAIChat.Components
+@inject CosmosDbService cosmosDbService
+<div class="h-100 d-flex flex-column" style="min-width: 275px;">
+
+    <div class="flex-column navbar navbar-dark bg-primary">
+        <div class="container-fluid justify-content-between">
+            <div class="flex-fill text-center text-white">
+                @User?.Name
+            </div>
+            <button class="navbar-toggler border-0" @onclick="ToggleNavMenu">
+                <i class="bi bi-arrow-right-square-fill"></i>
+            </button>
+        </div>
+    </div>
+
+
+    <div class="flex-grow-1 flex-column justify-content-center overflow-y-auto overflow-x-hidden">
+        @if (_loadingComplete == true)
+        {
+            <div>
+                <nav class="flex-column">
+                    <div class="nav-item py-2 d-grid">
+                        <NavLink style="cursor:pointer" class="btn btn-sm mx-1 btn-secondary d-flex flex-row align-items start" Match="NavLinkMatch.All" @onclick="@(e => NewChat())">
+                            <i class="bi bi-plus"></i>
+                            <span class="flex-fill">
+                                Create New Chat
+                            </span>
+                        </NavLink>
+                    </div>
+                    <div class="row row-cols-1 g-2 px-2 d-flex flex-column align-items-start">
+                        @foreach (var session in ChatSessions)
+                        {
+                            <div class="col">
+                                <div class="card @(IsActiveSession(session.SessionId) ? "bg-primary text-light" : "bg-primary opacity-50 text-light")">
+                                    <div class="card-body user-select-none" role="button" @onclick="@(e => LoadChat(session.SessionId,session.Name))">
+                                        <a class="card-title text-decoration-none h6">
+                                            @if (IsActiveSession(session.SessionId))
+                                            {
+                                                <i class="bi bi-chat-right-dots-fill me-2"></i>
+                                            }
+                                            <span title="@session.Name" class="ms-1">
+                                                @{
+                                                    string substring = SafeSubstring(session.Name, 20);
+                                                    MarkupString html = new MarkupString(substring);
+                                                }
+                                                @html
+                                            </span>
+                                        </a>
+                                    </div>
+                                    <div class="card-footer d-flex align-items-center justify-content-between">
+                                        <span class="badge bg-light me-2 user-select-none">
+                                            
+                                        </span>
+                                        <div class="btn-group" role="group">
+                                            <button type="button" class="btn btn-sm btn-link text-light" @onclick="@(e => OpenInput(session.SessionId,session.Name))">
+                                                <i class="bi bi-pencil-fill me-1"></i>
+                                            </button>
+                                            <button type="button" class="btn btn-sm btn-link text-light" @onclick="@(e => OpenConfirmation(session.SessionId,session.Name))">
+                                                <i class="bi bi-trash-fill ms-1"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </nav>
+            </div>
+        }
+    </div>
+</div>
+
+@if (_deletePopUpOpen)
+{
+    <Confirmation Caption="Delete a Chat"
+        Message="@_popUpText"
+        OnClose="@OnConfirmationClose"
+        Type="Confirmation.Category.DeleteNot">
+    </Confirmation>
+}
+
+
+@if (_renamePopUpOpen)
+{
+    <Input Caption="Rename a Chat" Value="@_popUpText" OnClose="@OnInputClose" />
+}
+
+@code {
+    [Parameter]
+    public User? User { get; set; } = null;
+
+    [Parameter]
+    public EventCallback<Session> OnChatClicked { get; set; } = default!;
+
+    [Parameter]
+    public static List<Session> ChatSessions { get; set; } = new();
+
+    [Parameter]
+    public EventCallback OnNavBarVisibilityUpdated { get; set; }
+
+
+    private string? _sessionId;
+    private string? _popUpText;
+    private bool _deletePopUpOpen = false;
+    private bool _loadingComplete = false;
+    private bool _renamePopUpOpen = false;
+
+    public Session? CurrentSession;
+
+    private static event EventHandler<string>? OnNavMenuChanged;
+
+    protected override void OnInitialized()
+    {
+        OnNavMenuChanged += async (o, e) =>
+        {
+            await this.InvokeAsync(async () =>
+            {
+                this.StateHasChanged();
+
+                await LoadCurrentChatAsync();
+            });
+        };
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_loadingComplete == true)
+            return;
+
+        ChatSessions = await cosmosDbService.GetSessionsAsync(User?.Id??string.Empty);
+
+        if (CurrentSession is not null && ChatSessions is not null & ChatSessions?.Count > 0)
+        {
+            var match = ChatSessions?.FirstOrDefault();
+            if (match is not null)
+            {
+                CurrentSession.SessionId = match.SessionId;
+                CurrentSession.Name = match.Name;
+            }
+        }
+
+        _loadingComplete = true;
+        await LoadCurrentChatAsync();
+
+    }
+
+    async private Task ToggleNavMenu()
+    {
+        await OnNavBarVisibilityUpdated.InvokeAsync();
+    }
+
+    private async Task<int> LoadCurrentChatAsync()
+    {
+        int index = 0;
+        if (CurrentSession is not null & ChatSessions is not null & ChatSessions?.Count > 0)
+        {
+            index = ChatSessions?.FindIndex(s => s.SessionId == CurrentSession?.SessionId) ?? 0;
+        }
+        if (CurrentSession is null || index < 0)
+        {
+            CurrentSession = new Session();
+            CurrentSession.SessionId = Constants.EMPTY_SESSION;
+            CurrentSession.Name = string.Empty;
+
+            if (ChatSessions is not null & ChatSessions?.Count > 0)
+            {
+                var match = ChatSessions?.FirstOrDefault();
+                if (match is not null)
+                {
+                    CurrentSession.SessionId = match.SessionId;
+                    CurrentSession.Name = match.Name;
+                }
+            }
+        }
+
+        await OnChatClicked.InvokeAsync(CurrentSession);
+        return 0;
+    }
+
+    private async Task NewChat()
+    {
+        Session session = new();
+        session.UserId = User?.Id??string.Empty;
+        await cosmosDbService.InsertSessionAsync(session);
+        ChatSessions.Add(session);
+        if (ChatSessions.Count == 1)
+        {
+            CurrentSession = ChatSessions[0] with { };
+            await LoadCurrentChatAsync();
+        }
+
+        UpdateNavMenuDisplay("Add");
+    }
+
+    public void UpdateNavMenuDisplay(string reason = "", Session? _session = null)
+    {
+        if (_session is not null)
+        {
+            int index = ChatSessions.FindIndex(s => s.SessionId == _session.SessionId);
+            ChatSessions[index].Name = _session.Name;
+        }
+
+        if (OnNavMenuChanged is not null)
+        {
+            OnNavMenuChanged.Invoke(null, reason);
+        }
+    }
+
+    async private Task<int> LoadChat(string _sessionId, string sessionName)
+    {
+        if (ChatSessions is null) return 0;
+
+        if (CurrentSession is null)
+            CurrentSession = new Session();
+
+        CurrentSession.SessionId = _sessionId;
+        CurrentSession.Name = sessionName;
+
+        await LoadCurrentChatAsync();
+
+        return 0;
+    }
+
+    private void OpenConfirmation(string id, string title)
+    {
+        _deletePopUpOpen = true;
+        _sessionId = id;
+        _popUpText = $"Do you want to delete the chat \"{title}\"?";
+    }
+
+    private async Task OnConfirmationClose(bool isOk)
+    {
+        bool updateCurrentChat = false;
+
+        if (CurrentSession is not null & _sessionId == CurrentSession?.SessionId)
+            updateCurrentChat = true;
+
+        if (isOk)
+        {
+            _deletePopUpOpen = false;
+
+            if (_sessionId!=null)
+                await cosmosDbService.DeleteSessionAndMessagesAsync(_sessionId);
+
+            int index = ChatSessions.FindIndex(s => s.SessionId == _sessionId);
+            ChatSessions.RemoveAt(index);
+
+            _deletePopUpOpen = false;
+
+            UpdateNavMenuDisplay("Delete");
+
+            if (!updateCurrentChat)
+                return;
+
+            CurrentSession = new Session();
+            CurrentSession.SessionId = Constants.EMPTY_SESSION;
+            CurrentSession.Name = string.Empty;
+
+            if (ChatSessions is not null & ChatSessions?.Count > 0)
+            {
+                var match = ChatSessions?.FirstOrDefault();
+                if (match is not null)
+                {
+                    CurrentSession.SessionId = match.SessionId;
+                    CurrentSession.Name = match.Name;
+                }
+            }
+
+            await LoadCurrentChatAsync();
+        }
+
+        _deletePopUpOpen = false;
+    }
+
+    private void OpenInput(string id, string title)
+    {
+        _renamePopUpOpen = true;
+        _sessionId = id;
+        _popUpText = title;
+    }
+
+    private async Task OnInputClose(string newName)
+    {
+        if (newName != "")
+        {
+            bool updateCurrentChat = false;
+
+            if (_sessionId is null || CurrentSession is null)
+                return;
+
+            if (_sessionId == CurrentSession?.SessionId)
+            {
+                updateCurrentChat = true;
+            }
+
+            Session session = await cosmosDbService.GetSessionAsync(_sessionId);
+            session.Name = newName;
+            await cosmosDbService.UpdateSessionAsync(session);
+            
+
+            int index = ChatSessions.FindIndex(s => s.SessionId == _sessionId);
+            ChatSessions[index].Name = newName;
+
+            _renamePopUpOpen = false;
+
+            UpdateNavMenuDisplay("Rename");
+
+            if (!updateCurrentChat)
+            {
+                return;
+            }
+
+            if (CurrentSession is not null)
+            {
+                CurrentSession.Name = newName;
+            }
+            await LoadCurrentChatAsync();
+        }
+
+        _renamePopUpOpen = false;
+    }
+
+    private bool IsActiveSession(string _sessionId) => CurrentSession switch
+    {
+        null => true,
+        (Session s) when s.SessionId == _sessionId => true,
+        _ => false
+    };
+
+    public string SafeSubstring(string text, int maxLength) => text switch
+    {
+        null => string.Empty,
+        _ => text.Length > maxLength ? text.Substring(0, maxLength) + "..." : text
+    };
+}
