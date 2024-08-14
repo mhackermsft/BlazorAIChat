@@ -29,6 +29,7 @@ namespace BlazorAIChat.Models
             Type = nameof(Session);
             SessionId = this.Id;
             Name = "New Chat";
+            UserId = string.Empty;
             Messages = new List<Message>();
         }
 

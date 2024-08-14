@@ -84,25 +84,22 @@ else
         @if (!IsNavMenuCollapsed)
         {
             <div class="sidebar">
-                <NavMenu @ref="@NavMenu" OnChatClicked="LoadChatEventHandlerAsync" User="@currentUser" OnNavBarVisibilityUpdated="UpdateNavBarVisibility" />
+                    <NavMenu @ref="@NavMenu" OnChatClicked="LoadChatEventHandlerAsync" User="@currentUser" OnNavBarVisibilityUpdated="UpdateNavBarVisibility" OnDeleteUploadedDocs="ShowDeleteDocConfirm" />
             </div>
         }
 
         <div class="flex-grow-1">
             <div class="h-100 mh-100 d-flex flex-column overflow-hidden justify-content-start">
-                    <div class="navbar navbar-dark bg-primary">
                         <div class="w-100 navbar navbar-dark bg-primary d-flex flex-row px-4 justify-content-between flex-nowrap">
-                            <div class="d-flex flex-row justify-content-start">
-                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" height="30" fill="currentColor" class="text-light">
-                                    <path d="M415.98 265.82v-.27a17.24 17.24 0 1 0 .01.27ZM224.4 321.87a17.24 17.24 0 1 0 34.48 0 17.24 17.24 0 0 0-34.48 0Z" />
-                                    <path d="M397.92 209.51C395.91 95.77 266.41 51.59 182.48 96.66l-.12 145.45a5.39 5.39 0 0 0 5.39 5.39h41.76a18.85 18.85 0 0 1 18.86 18.86v25.6a29.36 29.36 0 1 1-36.1 28.56 29.1 29.1 0 0 1 22.9-28.56v-26.94a5.65 5.65 0 0 0-5.66-5.66h-41.76a18.59 18.59 0 0 1-18.59-18.59v-135.9c-21.08 14.76-38.2 36.03-47.96 64.23-163.09 22.89-139.5 256.6 22.91 252.74h14.81V305.98a5.39 5.39 0 0 0-5.39-5.39h-23.71a29.36 29.36 0 1 1 0-13.2h23.71a18.59 18.59 0 0 1 18.59 18.59v115.86h148.46V210.59a5.39 5.39 0 0 0-5.39-5.39h-28.83a29.36 29.36 0 1 1-28.56-36.1 29.1 29.1 0 0 1 28.56 22.9h27.75a18.59 18.59 0 0 1 18.59 18.59v94.84h53.89a5.66 5.66 0 0 0 5.66-5.66v-5.39a29.38 29.38 0 0 1 6.73-57.94l1.1-.02a29.37 29.37 0 0 1 29.35 29.39 29.36 29.36 0 0 1-22.9 28.56v5.39a18.85 18.85 0 0 1-18.86 18.86h-53.89v103.2h43.38c61.49 2.64 114.03-46.08 115.32-107.78-1.2-53.49-41.47-98-94.58-104.54Z" />
-                                    <circle cx="101" cy="293.85" r="17.24" />
-                                    <circle cx="257.81" cy="198.46" r="17.24" />
-                                    <path d="m182.49 96.66-.07.05.07-.04Z" />
-                                </svg>
-                                <span class="navbar-brand mb-0 ms-1 h1">Blazor Azure OpenAI Chat</span>
-                                @currentSession?.Id
-                            </div>
+                        <div class="d-flex flex-row justify-content-start">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" height="30" fill="currentColor" class="text-light">
+                                <path d="M415.98 265.82v-.27a17.24 17.24 0 1 0 .01.27ZM224.4 321.87a17.24 17.24 0 1 0 34.48 0 17.24 17.24 0 0 0-34.48 0Z" />
+                                <path d="M397.92 209.51C395.91 95.77 266.41 51.59 182.48 96.66l-.12 145.45a5.39 5.39 0 0 0 5.39 5.39h41.76a18.85 18.85 0 0 1 18.86 18.86v25.6a29.36 29.36 0 1 1-36.1 28.56 29.1 29.1 0 0 1 22.9-28.56v-26.94a5.65 5.65 0 0 0-5.66-5.66h-41.76a18.59 18.59 0 0 1-18.59-18.59v-135.9c-21.08 14.76-38.2 36.03-47.96 64.23-163.09 22.89-139.5 256.6 22.91 252.74h14.81V305.98a5.39 5.39 0 0 0-5.39-5.39h-23.71a29.36 29.36 0 1 1 0-13.2h23.71a18.59 18.59 0 0 1 18.59 18.59v115.86h148.46V210.59a5.39 5.39 0 0 0-5.39-5.39h-28.83a29.36 29.36 0 1 1-28.56-36.1 29.1 29.1 0 0 1 28.56 22.9h27.75a18.59 18.59 0 0 1 18.59 18.59v94.84h53.89a5.66 5.66 0 0 0 5.66-5.66v-5.39a29.38 29.38 0 0 1 6.73-57.94l1.1-.02a29.37 29.37 0 0 1 29.35 29.39 29.36 29.36 0 0 1-22.9 28.56v5.39a18.85 18.85 0 0 1-18.86 18.86h-53.89v103.2h43.38c61.49 2.64 114.03-46.08 115.32-107.78-1.2-53.49-41.47-98-94.58-104.54Z" />
+                                <circle cx="101" cy="293.85" r="17.24" />
+                                <circle cx="257.81" cy="198.46" r="17.24" />
+                                <path d="m182.49 96.66-.07.05.07-.04Z" />
+                            </svg>
+                            <span class="navbar-brand mb-0 ms-1 h1">Blazor Azure OpenAI Chat</span>
                         </div>
                     </div>
 
@@ -175,6 +172,11 @@ else
                                                 </div>
                                                 <div class="toast-body">
                                                     <i class="bi bi-grip-vertical mr-2 text-black-50"></i>
+                                                    @if (msg.Prompt.StartsWith("data"))
+                                                    {
+                                                        <img style='max-height:300px; max-width:300px;' src='@msg.Prompt' />
+                                                    }
+                                                    else
                                                      @(new MarkupString(msg.Prompt))
                                                 </div>
                                             </div>
@@ -186,7 +188,8 @@ else
                                                 <div class="toast-body">
                                                     <i class="bi bi-grip-vertical mr-2 text-black-50"></i>
                                                     <span class="display: inline">
-                                                        @(new MarkupString(StripOuterParagraphTags(msg.Completion)))
+    
+                                                            @(new MarkupString(StripOuterParagraphTags(msg.Completion)))
                                                     </span>
                                                 </div>
                                             </div>
@@ -203,7 +206,7 @@ else
                                 <input type="text" class="form-control" placeholder="Enter your message" disabled="@isResponding" @bind-value="userMessage" @bind-value:event="oninput" @onkeydown="HandleKeyDown" />
                                 <button class="btn btn-primary" @onclick="SendMessage">Send</button>
                                 <InputFile @ref="inputFile" class="btn btn-warning" OnChange="HandleFileSelected" disabled="@(isFileInputDisabled||isResponding)" />
-                                <button class="btn btn-secondary" @onclick="Clear">@clearCancelText</button>
+                                <button class="btn btn-secondary" @onclick="Stop">Stop</button>
                             </div>                    
                         }
                     </div>
@@ -211,12 +214,21 @@ else
             </div>
         </div>
    
-    <CustomModal IsVisible="isFileInputDisabled" Title="Document Processing" Message="Please wait, the document is uploading and processing. The amount of time this takes depends upon the size of the document." />
+        <CustomModal IsVisible="isFileInputDisabled" Title="Document Processing" Message="Please wait, the document is uploading and processing. The amount of time this takes depends upon the size of the document." />
+
+        @if (deleteDocsPopUpOpen)
+        {
+            <Confirmation Caption="Delete Uploaded Documents"
+            Message="Are you sure you wish to delete all of the uploaded documents?"
+                      OnClose="@OnDocDeleteConfirmationClose"
+                      Type="Confirmation.Category.DeleteNot">
+            </Confirmation>
+        }
     }
 }
 
 @code {
-
+    private bool deleteDocsPopUpOpen = false;
     private bool loadingComplete = false;
     private NavMenu? NavMenu = default;
     private bool IsNavMenuCollapsed { get; set; }
@@ -227,7 +239,6 @@ else
     private Config config = new Config(){ Id=Guid.Empty};
 
     private IBrowserFile? selectedFile = null;
-    private string newResponse = string.Empty;
     private string userMessage = string.Empty;
     private IKernelBuilder? builder = null;
     private Kernel? kernel = null;
@@ -241,7 +252,6 @@ else
     bool isResponding = false;
     bool stopResponding = false;
 
-    private ElementReference chatWindow;
     private InputFile? inputFile;
 
     bool RequireEasyAuth = false;
@@ -267,6 +277,10 @@ else
     string aiSearchApiKey = string.Empty;
     string cosmosDbConn = string.Empty;
     string postgreSqlDbConn = string.Empty;
+
+    private readonly string _summarizePrompt = @"
+        Summarize this text. One to three words maximum length.
+        Plain text only. No punctuation, markup or tags.";
 
     protected override async Task OnInitializedAsync()
     {
@@ -391,11 +405,13 @@ else
             //Get reference to the chat completion service
             chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
 
+            //Clear the chat history and set the system message
+            messagesInChat = new List<Message>();
+
             //Get the current session chat messages
             await ReloadChatMessagesAsync();
 
-            //Clear the chat history and set the system message
-            internalClear();
+            StateHasChanged();
         }
         catch (Exception ex)
         {
@@ -409,48 +425,15 @@ else
         IsNavMenuCollapsed = !IsNavMenuCollapsed;
     }
 
-    private async void Clear()
+    private async void Stop()
     {
-        //If this is called when the AI is responding, then stop the response, otherwise clear the chat
+        //If this is called when the AI is responding, then stop the response
         if (isResponding)
         {
             stopResponding = true;
-            clearCancelText = "Clear";
-        }
-        else
-        {
-            internalClear();
-
-            //clear the value from inputFile
-            if (inputFile != null)
-            {
-                await js.InvokeVoidAsync("clearElementValue", inputFile.Element);
-            }
-
-            bool confirmed = await js.InvokeAsync<bool>("confirm", "Click OK to delete previously uploaded documents. Click cancel to only clear chat to start a new conversation.");
-
-            //if the user confirms, delete the memory store
-            if (confirmed)
-            {
-
-                if (kernelMemory!=null)
-                    await kernelMemory.DeleteIndexAsync(currentUser.Id.Replace(" ", ""));
-
-                ShowAlert("All documents have been removed.", AlertTypeEnum.info);
-            }
         }
     }
 
-    private void internalClear()
-    {
-        messagesInChat = new List<Message>();
-        uploadImageByteArray = null;
-        uploadImageType = string.Empty;
-        userMessage = string.Empty;
-        history = new ChatHistory();
-        history.AddSystemMessage(systemMessage);
-        StateHasChanged();
-    }
 
     private async Task SendMessage()
     {
@@ -481,20 +464,8 @@ else
                     history.AddUserMessage("----------------------------------");
                 }
 
-                //Save the user message to the memory store
-                if (uploadImageByteArray==null)
-                {
-                    history.AddUserMessage(messageToProcess);
-                }
-                else
-                {
-                    var sendMessage = new ChatMessageContentItemCollection
-                    {
-                        new TextContent(messageToProcess),
-                        new ImageContent(){Data=uploadImageByteArray, MimeType = uploadImageType }
-                    };
-                    history.AddUserMessage(sendMessage);
-                }
+                //Add the user message to the chat history
+                history.AddUserMessage(messageToProcess);
 
                 await StreamChatCompletionAsync(history,message, chatCompletionService);
                 await js.InvokeVoidAsync("scrollToBottom", "MessagesInChatdiv");
@@ -516,6 +487,8 @@ else
             var finalResults = new StringBuilder();
             isResponding = true;
             clearCancelText = "Stop";
+            StateHasChanged();
+
             await foreach (var chatUpdate in chatCompletionService.GetStreamingChatMessageContentsAsync(history))
             {
                 //If the user has requested to stop responding, then break out of the loop
@@ -533,18 +506,23 @@ else
                     string partialHTML = md.Transform(markdownBuilder.ToString());
 
                     message.Completion = FixupTextForCode(partialHTML.ToString());
-                    newResponse = "<b>assistant</b>: " + partialHTML.ToString();
                     // Scroll to the bottom of the chat window
                     await js.InvokeVoidAsync("scrollToBottom", "MessagesInChatdiv");
                     StateHasChanged();
                 }
             }
-            newResponse = string.Empty;
             message.Completion = md.Transform(FixupTextForCode(finalResults.ToString()));
             history.AddAssistantMessage(finalResults.ToString());
 
             //store the chat session history
             await UpdateSessionAndMessage(currentSession?.Id??string.Empty, message);
+
+            //Update the chat session name if it is the default name
+            if (currentSession.Name=="New Chat")
+            {
+                currentSession.Name = await SummarizeChatSessionNameAsync(currentSession?.SessionId);
+                NavMenu.UpdateNavMenuDisplay("summarized text", currentSession);
+            }
 
             // Scroll to the bottom of the chat window
             await js.InvokeVoidAsync("scrollToBottom", "MessagesInChatdiv");
@@ -644,30 +622,29 @@ else
         }
     }
 
-    private void ProcessImage(MemoryStream memoryStream, string filename)
+    private async void ProcessImage(MemoryStream memoryStream, string filename)
     {
         try
         {
-            //set the mime type of the image to the uploadImageType string based on the filename
-            if (filename.EndsWith(".jpg") || filename.EndsWith(".jpeg"))
-            {
-                uploadImageType = "image/jpeg";
-            }
-            else if (filename.EndsWith(".png"))
-            {
-                uploadImageType = "image/png";
-            }
-            else if (filename.EndsWith(".gif"))
-            {
-                uploadImageType = "image/gif";
-            }
-
+            uploadImageType = GetImageMimeType(filename);
             uploadImageByteArray = memoryStream.ToArray();
-
-            string base64Image = ConvertByteImageToBase64Data(uploadImageByteArray);
+            string base64Image = ConvertByteImageToBase64Data(uploadImageByteArray, uploadImageType);
+            Message message = new Message(currentSession.Id, $"{base64Image}", "What would you like to know about that image?");
             if (messagesInChat!=null && currentSession!=null)
-                messagesInChat.Add(new Message(currentSession.Id, $"<img style='max-height:300px; max-width:300px;' src='{base64Image}'/>","What would you like to know about that image?"));
+                messagesInChat.Add(message);
+
+            var sendMessage = new ChatMessageContentItemCollection
+            {
+                new ImageContent(){Data=uploadImageByteArray, MimeType = uploadImageType }
+            };
+            history.AddUserMessage(sendMessage);
+
+            //store the chat session history
+            await UpdateSessionAndMessage(currentSession?.Id ?? string.Empty, message);
             StateHasChanged();
+            await js.InvokeVoidAsync("scrollToBottom", "MessagesInChatdiv");
+
+
             return;
 
         }
@@ -714,9 +691,9 @@ else
         StateHasChanged();
     }
 
-    private string ConvertByteImageToBase64Data(byte[] byteImage)
+    private string ConvertByteImageToBase64Data(byte[] byteImage, string mimeType)
     {
-        return "data:image/png;base64," + Convert.ToBase64String(byteImage);
+        return $"data:{mimeType};base64," + Convert.ToBase64String(byteImage);
     }
 
     private void RequestAccess()
@@ -780,6 +757,7 @@ else
     {
         loadingComplete = false;
         currentSession = session;
+        StateHasChanged();
         await ReloadChatMessagesAsync();
     }
 
@@ -797,7 +775,15 @@ else
         {
             foreach (var msg in messagesInChat)
             {
-                history.AddUserMessage(msg.Prompt); 
+                if (msg.Prompt.StartsWith("data:image"))
+                {
+                    string mimeType = ExtractMimeType(msg.Prompt);
+                    history.AddUserMessage(new ChatMessageContentItemCollection() { new ImageContent() { Data = Convert.FromBase64String(msg.Prompt.Substring(mimeType.Length + 13)), MimeType=mimeType } });
+                }
+                else
+                {
+                    history.AddUserMessage(msg.Prompt);
+                }
                 history.AddAssistantMessage(msg.Completion);             
             }
         }
@@ -818,6 +804,41 @@ else
 
     }
 
+    public async Task<string> SummarizeChatSessionNameAsync(string? sessionId)
+    {
+        ArgumentNullException.ThrowIfNull(sessionId);
+
+        //Get the messages for the session
+        List<Message> messages = await cosmosDbService.GetSessionMessagesAsync(sessionId);
+
+        //Create a conversation string from the messages
+        string conversationText = string.Join(" ", messages.Select(m => m.Prompt + " " + m.Completion));
+
+        //Send to Semantic Kernel to summarize the conversation
+        string completionText = "New Chat";
+        var skChatHistory = new ChatHistory();
+        skChatHistory.AddSystemMessage(_summarizePrompt);
+        skChatHistory.AddUserMessage(conversationText);
+
+        PromptExecutionSettings settings = new()
+            {
+                ExtensionData = new Dictionary<string, object>()
+            {
+                { "Temperature", 0.0 },
+                { "TopP", 1.0 },
+                { "MaxTokens", 100 }
+            }
+            };
+
+        var result = await kernel.GetRequiredService<IChatCompletionService>().GetChatMessageContentAsync(skChatHistory, settings);
+        completionText = result.Items[0].ToString()!;
+
+        Session session = await cosmosDbService.GetSessionAsync(sessionId);
+        session.Name = completionText;
+        await cosmosDbService.UpdateSessionAsync(session);
+        return completionText;
+    }
+
     public static string StripOuterParagraphTags(string input)
     {
         if (string.IsNullOrEmpty(input))
@@ -828,6 +849,65 @@ else
         // Use a regular expression to remove the outer <p> and </p> tags, case-insensitive
         string pattern = @"^\s*<p>(.*?)<\/p>?\s*$";
         return Regex.Replace(input, pattern, "$1", RegexOptions.IgnoreCase | RegexOptions.Singleline);
+    }
+
+    private string GetImageMimeType(string filename)
+    {
+        if (filename.EndsWith(".jpg") || filename.EndsWith(".jpeg"))
+        {
+            uploadImageType = "image/jpeg";
+        }
+        else if (filename.EndsWith(".png"))
+        {
+            uploadImageType = "image/png";
+        }
+        else if (filename.EndsWith(".gif"))
+        {
+            uploadImageType = "image/gif";
+        }
+        else
+        {
+            uploadImageType = string.Empty;
+        }
+
+        return uploadImageType;
+    }
+
+    private string ExtractMimeType(string dataUrl)
+    {
+        if (string.IsNullOrEmpty(dataUrl))
+        {
+            throw new ArgumentException("The data URL cannot be null or empty.", nameof(dataUrl));
+        }
+
+        int startIndex = dataUrl.IndexOf(':') + 1;
+        int endIndex = dataUrl.IndexOf(';');
+
+        if (startIndex == 0 || endIndex == -1)
+        {
+            throw new FormatException("The data URL format is invalid.");
+        }
+
+        return dataUrl.Substring(startIndex, endIndex - startIndex);
+    }
+
+    private void ShowDeleteDocConfirm()
+    {
+        deleteDocsPopUpOpen = true;
+        StateHasChanged();
+    }
+
+    private async Task OnDocDeleteConfirmationClose(bool isOk)
+    {
+        deleteDocsPopUpOpen = false;
+        if (isOk)
+        {
+
+            if (kernelMemory != null)
+                await kernelMemory.DeleteIndexAsync(currentUser.Id.Replace(" ", ""));
+
+            ShowAlert("All documents have been removed.", AlertTypeEnum.info);
+        }
     }
 
     private void GoToProfile()

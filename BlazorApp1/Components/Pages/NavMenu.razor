@@ -4,17 +4,11 @@
 @inject CosmosDbService cosmosDbService
 <div class="h-100 d-flex flex-column" style="min-width: 275px;">
 
-    <div class="flex-column navbar navbar-dark bg-primary">
-        <div class="container-fluid justify-content-between">
-            <div class="flex-fill text-center text-white">
-                @User?.Name
-            </div>
-            <button class="navbar-toggler border-0" @onclick="ToggleNavMenu">
-                <i class="bi bi-arrow-right-square-fill"></i>
-            </button>
+    <div class="navbar navbar-dark bg-primary">
+        <div class="w-100 d-flex align-items-center justify-content-center ">
+            <span class="navbar-brand mb-0 h1">@User?.Name</span>
         </div>
     </div>
-
 
     <div class="flex-grow-1 flex-column justify-content-center overflow-y-auto overflow-x-hidden">
         @if (_loadingComplete == true)
@@ -22,8 +16,13 @@
             <div>
                 <nav class="flex-column">
                     <div class="nav-item py-2 d-grid">
+                        <NavLink style="cursor:pointer" class="btn btn-sm mx-1 btn-secondary d-flex flex-row align-items start" Match="NavLinkMatch.All" @onclick="@(e => DeleteUploadedDocs())">
+                            <span class="flex-fill">
+                                Clear Documents
+                            </span>
+                        </NavLink>
+                        <br/>
                         <NavLink style="cursor:pointer" class="btn btn-sm mx-1 btn-secondary d-flex flex-row align-items start" Match="NavLinkMatch.All" @onclick="@(e => NewChat())">
-                            <i class="bi bi-plus"></i>
                             <span class="flex-fill">
                                 Create New Chat
                             </span>
@@ -100,6 +99,9 @@
     [Parameter]
     public EventCallback OnNavBarVisibilityUpdated { get; set; }
 
+    [Parameter]
+    public EventCallback OnDeleteUploadedDocs { get; set; }
+
 
     private string? _sessionId;
     private string? _popUpText;
@@ -169,6 +171,7 @@
                 var match = ChatSessions?.FirstOrDefault();
                 if (match is not null)
                 {
+                    CurrentSession.Id = match.SessionId;
                     CurrentSession.SessionId = match.SessionId;
                     CurrentSession.Name = match.Name;
                 }
@@ -190,6 +193,8 @@
             CurrentSession = ChatSessions[0] with { };
             await LoadCurrentChatAsync();
         }
+        else
+            CurrentSession = session;
 
         UpdateNavMenuDisplay("Add");
     }
@@ -215,6 +220,7 @@
         if (CurrentSession is null)
             CurrentSession = new Session();
 
+        CurrentSession.Id= _sessionId;
         CurrentSession.SessionId = _sessionId;
         CurrentSession.Name = sessionName;
 
@@ -263,6 +269,7 @@
                 var match = ChatSessions?.FirstOrDefault();
                 if (match is not null)
                 {
+                    CurrentSession.Id = match.SessionId;
                     CurrentSession.SessionId = match.SessionId;
                     CurrentSession.Name = match.Name;
                 }
@@ -298,7 +305,7 @@
             Session session = await cosmosDbService.GetSessionAsync(_sessionId);
             session.Name = newName;
             await cosmosDbService.UpdateSessionAsync(session);
-            
+
 
             int index = ChatSessions.FindIndex(s => s.SessionId == _sessionId);
             ChatSessions[index].Name = newName;
@@ -334,4 +341,9 @@
         null => string.Empty,
         _ => text.Length > maxLength ? text.Substring(0, maxLength) + "..." : text
     };
+
+    private void DeleteUploadedDocs()
+    {
+        OnDeleteUploadedDocs.InvokeAsync();
+    }
 }
