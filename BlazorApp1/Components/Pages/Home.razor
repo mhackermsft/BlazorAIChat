@@ -733,6 +733,7 @@ else
         }
         else
         {
+
             //if there are no admins already, then add the user as an admin and auto approve
             if (!dbContext.Users.Any(u => u.Role == UserRoles.Admin))
             {
@@ -743,9 +744,18 @@ else
             }
             else
             {
-                dbContext.Users.Add(new User() { Id = currentUser.Id, Name = currentUser.Name, Role = UserRoles.Guest, DateRequested = DateTime.Now });
-                dbContext.SaveChanges();
-                ShowAlert("Your request for access has been submitted. You will have access once an admin approves the request.", AlertTypeEnum.success);
+                if (config.AutomaticAccountApproval)
+                {
+                    dbContext.Users.Add(new User() { Id = currentUser.Id, Name = currentUser.Name, Role = UserRoles.User, DateRequested = DateTime.Now, DateApproved=DateTime.Now, ApprovedBy=string.Empty, Email=string.Empty  });
+                    dbContext.SaveChanges();
+                    ShowAlert("Your request for access has been submitted. You will have access once an admin approves the request.", AlertTypeEnum.success);
+                }
+                else
+                {
+                    dbContext.Users.Add(new User() { Id = currentUser.Id, Name = currentUser.Name, Role = UserRoles.Guest, DateRequested = DateTime.Now });
+                    dbContext.SaveChanges();
+                    ShowAlert("Your request for access has been submitted. You will have access once an admin approves the request.", AlertTypeEnum.success);
+                }
             }
         }
     }
