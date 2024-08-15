@@ -16,12 +16,6 @@
             <div>
                 <nav class="flex-column">
                     <div class="nav-item py-2 d-grid">
-                        <NavLink style="cursor:pointer" class="btn btn-sm mx-1 btn-secondary d-flex flex-row align-items start" Match="NavLinkMatch.All" @onclick="@(e => DeleteUploadedDocs())">
-                            <span class="flex-fill">
-                                Clear Documents
-                            </span>
-                        </NavLink>
-                        <br/>
                         <NavLink style="cursor:pointer" class="btn btn-sm mx-1 btn-secondary d-flex flex-row align-items start" Match="NavLinkMatch.All" @onclick="@(e => NewChat())">
                             <span class="flex-fill">
                                 Create New Chat
@@ -97,7 +91,7 @@
     public EventCallback OnNavBarVisibilityUpdated { get; set; }
 
     [Parameter]
-    public EventCallback OnDeleteUploadedDocs { get; set; }
+    public EventCallback<string> OnDeleteUploadedDocs { get; set; }
 
     private List<Session> _chatSessions { get; set; } = new();
     private string? _sessionId;
@@ -220,6 +214,8 @@
         {
             _deletePopUpOpen = false;
 
+            DeleteUploadedDocs(_sessionId);
+
             if (_sessionId!=null)
                 await chatHistoryService.DeleteSessionAndMessagesAsync(_sessionId);
 
@@ -298,8 +294,8 @@
         _ => text.Length > maxLength ? text.Substring(0, maxLength) + "..." : text
     };
 
-    private void DeleteUploadedDocs()
+    private void DeleteUploadedDocs(string sessionId)
     {
-        OnDeleteUploadedDocs.InvokeAsync();
+        OnDeleteUploadedDocs.InvokeAsync(sessionId);
     }
 }

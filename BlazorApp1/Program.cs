@@ -1,6 +1,7 @@
 using BlazorAIChat;
 using BlazorAIChat.Authentication;
 using BlazorAIChat.Components;
+using BlazorAIChat.Models;
 using BlazorAIChat.Services;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Http.Features;
@@ -8,7 +9,8 @@ using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-//Add SQLite database context, used with EF for config and user authorization data.
+
+builder.Services.Configure<AppSettings>(builder.Configuration);
 builder.Services.AddDbContext<AIChatDBContext>();
 builder.Services.AddScoped<UserService>();
 builder.Services.AddSingleton<ChatHistoryService>();

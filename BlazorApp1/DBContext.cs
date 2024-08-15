@@ -1,4 +1,6 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using BlazorAIChat.Models;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using System.Configuration;
 
 namespace BlazorAIChat
@@ -6,17 +8,17 @@ namespace BlazorAIChat
     public class AIChatDBContext : DbContext
     {
 
-        protected readonly IConfiguration _configuration;
+        protected readonly AppSettings _appSettings;
 
-        public AIChatDBContext(IConfiguration configuration)
+        public AIChatDBContext(IOptions<AppSettings> appSettings)
         {
-           _configuration = configuration;
+            _appSettings = appSettings.Value;
         }
 
         protected override void OnConfiguring(DbContextOptionsBuilder options)
         {
             // connect to SQLite database
-            options.UseSqlite(_configuration.GetConnectionString("ConfigDatabase"));
+            options.UseSqlite(_appSettings.ConnectionStrings.ConfigDatabase);
         }
 
         public DbSet<Models.User> Users { get; set; }

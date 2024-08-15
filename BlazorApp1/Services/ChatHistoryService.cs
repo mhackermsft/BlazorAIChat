@@ -4,6 +4,7 @@ using BlazorAIChat.Models;
 using Microsoft.Azure.Cosmos;
 using Microsoft.Azure.Cosmos.Fluent;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Container = Microsoft.Azure.Cosmos.Container;
 
 namespace BlazorAIChat.Services
@@ -11,7 +12,7 @@ namespace BlazorAIChat.Services
     public class ChatHistoryService
     {
 
-        private readonly Container _chatContainer;
+        private readonly Container? _chatContainer;
         private readonly AIChatDBContext _aIChatDBContext;
         private bool usesCosmosDb = false;
 
@@ -21,13 +22,14 @@ namespace BlazorAIChat.Services
         /// </summary>
         /// <param name="config">Configuration object</param>
         /// <param name="aIChatDBContext">SQLite database context</param>
-        public ChatHistoryService(IConfiguration config)
+        public ChatHistoryService(IOptions<AppSettings> settings)
         {
-            _aIChatDBContext = new AIChatDBContext(config);
+            var appSettings = settings.Value;
+            _aIChatDBContext = new AIChatDBContext(settings);
 
-            var connectionString = config["ConnectionStrings:CosmosDb"];
-            var databaseName = config["CosmosDb:Database"];
-            var chatContainerName = config["CosmosDb:Container"];
+            var connectionString = appSettings.ConnectionStrings.CosmosDb;
+            var databaseName = appSettings.CosmosDb.Database;
+            var chatContainerName = appSettings.CosmosDb.Container;
 
             if (!string.IsNullOrEmpty(connectionString) && !string.IsNullOrEmpty(databaseName) && !string.IsNullOrEmpty(chatContainerName))
             {
@@ -64,7 +66,7 @@ namespace BlazorAIChat.Services
             if (usesCosmosDb)
             {
                 PartitionKey partitionKey = new(session.SessionId);
-                return await _chatContainer.CreateItemAsync<Session>(
+                return await _chatContainer!.CreateItemAsync<Session>(
                     item: session,
                     partitionKey: partitionKey
                 );
@@ -88,7 +90,7 @@ namespace BlazorAIChat.Services
             {
                 PartitionKey partitionKey = new(message.SessionId);
                 Message newMessage = message with { TimeStamp = DateTime.UtcNow };
-                return await _chatContainer.CreateItemAsync<Message>(
+                return await _chatContainer!.CreateItemAsync<Message>(
                     item: message,
                     partitionKey: partitionKey
                 );
@@ -113,7 +115,7 @@ namespace BlazorAIChat.Services
                     .WithParameter("@type", nameof(Session))
                     .WithParameter("@userId", userId);
 
-                FeedIterator<Session> response = _chatContainer.GetItemQueryIterator<Session>(query);
+                FeedIterator<Session> response = _chatContainer!.GetItemQueryIterator<Session>(query);
 
                 List<Session> output = new();
                 while (response.HasMoreResults)
@@ -142,7 +144,7 @@ namespace BlazorAIChat.Services
                     .WithParameter("@sessionId", sessionId)
                     .WithParameter("@type", nameof(Message));
 
-                FeedIterator<Message> results = _chatContainer.GetItemQueryIterator<Message>(query);
+                FeedIterator<Message> results = _chatContainer!.GetItemQueryIterator<Message>(query);
 
                 List<Message> output = new();
                 while (results.HasMoreResults)
@@ -168,7 +170,7 @@ namespace BlazorAIChat.Services
             if (usesCosmosDb)
             {
                 PartitionKey partitionKey = new(session.SessionId);
-                return await _chatContainer.ReplaceItemAsync(
+                return await _chatContainer!.ReplaceItemAsync(
                     item: session,
                     id: session.Id,
                     partitionKey: partitionKey
@@ -193,7 +195,7 @@ namespace BlazorAIChat.Services
             {
                 ItemResponse<Session>? results = null;
                 PartitionKey partitionKey = new(sessionId);
-                results = await _chatContainer.ReadItemAsync<Session>(
+                results = await _chatContainer!.ReadItemAsync<Session>(
                     partitionKey: partitionKey,
                     id: sessionId
                     );
@@ -201,7 +203,15 @@ namespace BlazorAIChat.Services
             }
             else
             {
-                return await _aIChatDBContext.Sessions.FindAsync(sessionId);
+                var results = await _aIChatDBContext.Sessions.FindAsync(sessionId);
+                if (results==null)
+                {
+                    return new Session();
+                }
+                else
+                {
+                    return results;
+                }
             }
         }
 
@@ -221,7 +231,7 @@ namespace BlazorAIChat.Services
                 }
 
                 PartitionKey partitionKey = new(messages[0].SessionId);
-                TransactionalBatch batch = _chatContainer.CreateTransactionalBatch(partitionKey);
+                TransactionalBatch batch = _chatContainer!.CreateTransactionalBatch(partitionKey);
 
                 foreach (var message in messages)
                 {
@@ -277,9 +287,9 @@ namespace BlazorAIChat.Services
                 QueryDefinition query = new QueryDefinition("SELECT VALUE c.id FROM c WHERE c.sessionId = @sessionId")
                         .WithParameter("@sessionId", sessionId);
 
-                FeedIterator<string> response = _chatContainer.GetItemQueryIterator<string>(query);
+                FeedIterator<string> response = _chatContainer!.GetItemQueryIterator<string>(query);
 
-                TransactionalBatch batch = _chatContainer.CreateTransactionalBatch(partitionKey);
+                TransactionalBatch batch = _chatContainer!.CreateTransactionalBatch(partitionKey);
                 while (response.HasMoreResults)
                 {
                     FeedResponse<string> results = await response.ReadNextAsync();
@@ -303,7 +313,7 @@ namespace BlazorAIChat.Services
                 }
 
                 //delete the session
-                Session session = await _aIChatDBContext.Sessions.FindAsync(sessionId);
+                var session = await _aIChatDBContext.Sessions.FindAsync(sessionId);
                 if (session != null)
                 {
                     _aIChatDBContext.Sessions.Remove(session);

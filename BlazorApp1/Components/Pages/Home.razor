@@ -7,6 +7,7 @@
 @inject ChatHistoryService chatHistoryService
 @inject AIChatDBContext dbContext
 @inject UserService userService
+@inject IOptions<AppSettings> appSettings
 
 @using Azure
 @using Azure.AI.DocumentIntelligence
@@ -15,6 +16,8 @@
 @using Azure.Storage.Blobs
 @using Azure.Storage.Blobs.Models
 @using BlazorAIChat.Components.Shared
+@using Microsoft.AspNetCore.Components.Web
+@using Microsoft.Extensions.Options;
 @using BlazorAIChat.Models
 @using BlazorAIChat.Utils
 @using BlazorAIChat.Services
@@ -84,7 +87,7 @@ else
         @if (!IsNavMenuCollapsed)
         {
             <div class="sidebar">
-                    <NavMenu @ref="@NavMenu" OnChatClicked="LoadChatEventHandlerAsync" User="@currentUser" OnNavBarVisibilityUpdated="UpdateNavBarVisibility" OnDeleteUploadedDocs="ShowDeleteDocConfirm" />
+                    <NavMenu @ref="@NavMenu" OnChatClicked="LoadChatEventHandlerAsync" User="@currentUser" OnNavBarVisibilityUpdated="UpdateNavBarVisibility" OnDeleteUploadedDocs="DeleteUploadedDocs" />
             </div>
         }
 
@@ -100,6 +103,31 @@ else
                                 <path d="m182.49 96.66-.07.05.07-.04Z" />
                             </svg>
                             <span class="navbar-brand mb-0 ms-1 h1">Blazor Azure OpenAI Chat</span>
+                            @if (appSettings.Value.UsesPostgreSQL)
+                            {
+                                <h6><span class="badge bg-success ms-2">PostgreSQL Memory Storage</span></h6>
+                            }
+                            else
+                            {
+                                <h6><span class="badge bg-success ms-2">File Memory Storage</span></h6>
+                            }
+                            @if (appSettings.Value.UsesAzureAISearch)
+                            {
+                                <h6><span class="badge bg-success ms-2">Azure AI Search</span></h6>
+                            }
+                            @if (appSettings.Value.UsesAzureDocIntelligence)
+                            {
+                                <h6><span class="badge bg-success ms-2">Azure Doc Intelligence</span></h6>
+                            }
+                            @if (appSettings.Value.UsesAzureDocIntelligence)
+                            {
+                                <h6><span class="badge bg-success ms-2">Cosmos DB Chat History</span></h6>
+                            }
+                            else
+                            {
+                                <h6><span class="badge bg-success ms-2">SQLite Chat History</span></h6>
+                            }
+
                         </div>
                     </div>
 
@@ -216,23 +244,15 @@ else
    
         <CustomModal IsVisible="isFileInputDisabled" Title="Document Processing" Message="Please wait, the document is uploading and processing. The amount of time this takes depends upon the size of the document." />
 
-        @if (deleteDocsPopUpOpen)
-        {
-            <Confirmation Caption="Delete Uploaded Documents"
-            Message="Are you sure you wish to delete all of the uploaded documents?"
-                      OnClose="@OnDocDeleteConfirmationClose"
-                      Type="Confirmation.Category.DeleteNot">
-            </Confirmation>
-        }
     }
 }
 
 @code {
-    private bool deleteDocsPopUpOpen = false;
     private bool loadingComplete = false;
     private NavMenu? NavMenu = default;
     private bool IsNavMenuCollapsed { get; set; }
     private Session? currentSession;
+    private string sessionIdToDelete = string.Empty;
     private List<Message>? messagesInChat;
 
     #pragma warning disable SKEXP0010, SKEXP0001, SKEXP0020
@@ -296,20 +316,21 @@ else
 
         try
         {
+            AppSettings settings = appSettings.Value;
+
             // Get settings from appsettings.json or App Service configuration
-            var endpoint = Configuration["AzureOpenAIChatCompletion:Endpoint"] ?? string.Empty;
-            var apiKey = Configuration["AzureOpenAIChatCompletion:ApiKey"] ?? string.Empty;
-            var model = Configuration["AzureOpenAIChatCompletion:Model"] ?? string.Empty;
-            var embedModel = Configuration["AzureOpenAIEmbedding:Model"] ?? string.Empty;
-            postgreSqlDbConn = Configuration["ConnectionStrings:PostgreSQL"] ?? string.Empty;
-            chatModelSupportsImages = bool.Parse(Configuration["AzureOpenAIChatCompletion:SupportsImages"] ?? "false");
-            RequireEasyAuth = bool.Parse(Configuration["RequireEasyAuth"] ?? "false");
-            systemMessage = Configuration["SystemMessage"] ?? systemMessage;
-            documentIntelligenceEndpoint = Configuration["DocumentIntelligence:Endpoint"] ?? string.Empty;
-            documentIntelligenceApiKey = Configuration["DocumentIntelligence:ApiKey"] ?? string.Empty;
-            azureStorageConnectionString = Configuration["ConnectionStrings:AzureStorage"] ?? string.Empty;
-            aiSearchEndpoint = Configuration["AzureAISearch:Endpoint"] ?? string.Empty;
-            aiSearchApiKey = Configuration["AzureAISearch:ApiKey"] ?? string.Empty;
+            var endpoint = settings.AzureOpenAIChatCompletion.Endpoint;
+            var apiKey = settings.AzureOpenAIChatCompletion.ApiKey;
+            var model = settings.AzureOpenAIChatCompletion.Model;
+            var embedModel = settings.AzureOpenAIEmbedding.Model;
+            postgreSqlDbConn = settings.ConnectionStrings.PostgreSQL;
+            chatModelSupportsImages = settings.AzureOpenAIChatCompletion.SupportsImages;
+            RequireEasyAuth = settings.RequireEasyAuth;
+            systemMessage = settings.SystemMessage;
+            documentIntelligenceEndpoint = settings.DocumentIntelligence.Endpoint;
+            documentIntelligenceApiKey = settings.DocumentIntelligence.ApiKey;
+            aiSearchEndpoint = settings.AzureAISearch.Endpoint;
+            aiSearchApiKey = settings.AzureAISearch.ApiKey;
 
             //Verify if the App Service needs configuration.
             if (currentUser.Id=="Guest User" && RequireEasyAuth)
@@ -361,7 +382,7 @@ else
 
 
             //If Azure AI Search is configured, we use that for storage
-            if (!string.IsNullOrEmpty(aiSearchEndpoint) && !string.IsNullOrEmpty(aiSearchApiKey))
+            if (settings.UsesAzureAISearch)
             {
                 kernelMemoryBuilder = kernelMemoryBuilder.WithAzureAISearchMemoryDb(new AzureAISearchConfig()
                 {
@@ -372,23 +393,23 @@ else
                 });
 
             }
-            else if (string.IsNullOrEmpty(postgreSqlDbConn))
-            {
-                //Use file memory store
-                kernelMemoryBuilder = kernelMemoryBuilder.WithSimpleVectorDb(new Microsoft.KernelMemory.MemoryStorage.DevTools.SimpleVectorDbConfig { StorageType = Microsoft.KernelMemory.FileSystem.DevTools.FileSystemTypes.Disk, Directory = knnDirectory });
-            }
-            else
+            else if (settings.UsesPostgreSQL)
             {
                 //Use PostgreSQL DB memory store
                 //NOTE: You must have enabled pgvector extension in your PostgreSQL database for this to work.
                 kernelMemoryBuilder = kernelMemoryBuilder.WithPostgresMemoryDb(new PostgresConfig()
-                {
-                    ConnectionString= postgreSqlDbConn    
-                });
+                    {
+                        ConnectionString = postgreSqlDbConn
+                    });
+            }
+            else
+            {
+                //Use file memory store
+                kernelMemoryBuilder = kernelMemoryBuilder.WithSimpleVectorDb(new Microsoft.KernelMemory.MemoryStorage.DevTools.SimpleVectorDbConfig { StorageType = Microsoft.KernelMemory.FileSystem.DevTools.FileSystemTypes.Disk, Directory = knnDirectory });
             }
 
             //Configure document intelligence if configured
-            if (!chatModelSupportsImages && !string.IsNullOrEmpty(documentIntelligenceEndpoint) && !string.IsNullOrEmpty(documentIntelligenceApiKey))
+            if (!chatModelSupportsImages && settings.UsesAzureDocIntelligence)
             {
                 kernelMemoryBuilder = kernelMemoryBuilder.WithAzureAIDocIntel(new AzureAIDocIntelConfig()
                     {
@@ -453,7 +474,7 @@ else
                 StateHasChanged();
 
                 //Look up possible knowledge from the memory store
-                var answer = await kernelMemory!.AskAsync(messageToProcess, currentUser.Id.Replace(" ", ""));
+                var answer = await kernelMemory!.AskAsync(messageToProcess, currentSession.Id);
 
                 if (!answer.NoResult)
                 {
@@ -514,7 +535,7 @@ else
             await UpdateSessionAndMessage(currentSession?.Id??string.Empty, message);
 
             //Update the chat session name if it is the default new chat name
-            if (currentSession.Name==Models.Constants.NEW_CHAT)
+            if (currentSession!=null && currentSession.Name==Models.Constants.NEW_CHAT)
             {
                 currentSession.Name = await SummarizeChatSessionNameAsync(currentSession?.SessionId);
                 NavMenu.UpdateNavMenuDisplay("summarized text", currentSession);
@@ -620,6 +641,12 @@ else
     {
         try
         {
+            if (currentSession is null)
+            {
+                ShowAlert("You need to start a chat session before uploading an image.", AlertTypeEnum.warning);
+                return;
+            };
+
             uploadImageType = GetImageMimeType(filename);
             uploadImageByteArray = memoryStream.ToArray();
             string base64Image = ConvertByteImageToBase64Data(uploadImageByteArray, uploadImageType);
@@ -655,7 +682,7 @@ else
         if (kernelMemory != null)
         {
             var docId = Guid.NewGuid().ToString();
-            string index = currentUser.Id.Replace(" ", "");
+            string index = currentSession.SessionId;
             TagCollection tags = new TagCollection();
             tags.Add("user", currentUser.Id);
             memoryStream.Position = 0;
@@ -885,22 +912,16 @@ else
         return dataUrl.Substring(startIndex, endIndex - startIndex);
     }
 
-    private void ShowDeleteDocConfirm()
-    {
-        deleteDocsPopUpOpen = true;
-        StateHasChanged();
-    }
 
-    private async Task OnDocDeleteConfirmationClose(bool isOk)
+    private async Task DeleteUploadedDocs(string sessionIdToDelete)
     {
-        deleteDocsPopUpOpen = false;
-        if (isOk)
+        if (!string.IsNullOrEmpty(sessionIdToDelete))
         {
 
             if (kernelMemory != null)
-                await kernelMemory.DeleteIndexAsync(currentUser.Id.Replace(" ", ""));
+                await kernelMemory.DeleteIndexAsync(sessionIdToDelete);
 
-            ShowAlert("All documents have been removed.", AlertTypeEnum.info);
+            sessionIdToDelete = string.Empty;
         }
     }
 
