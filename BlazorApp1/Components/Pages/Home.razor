@@ -216,10 +216,24 @@ else
                                                 </div>
                                                 <div class="toast-body">
                                                     <i class="bi bi-grip-vertical mr-2 text-black-50"></i>
-                                                    <span class="display: inline">
-    
-                                                            @(new MarkupString(StripOuterParagraphTags(msg.Completion)))
-                                                    </span>
+                                                    
+                                                        @if(string.IsNullOrEmpty(msg.Completion.Trim()))
+                                                        {
+                                                            <div class="chat-bubble">
+                                                                <div class="typing">
+                                                                    <div class="dot"></div>
+                                                                    <div class="dot"></div>
+                                                                    <div class="dot"></div>
+                                                                </div>
+                                                            </div>
+                                                        }
+                                                        else
+                                                        {
+                                                            <span class="display: inline">
+                                                                @(new MarkupString(StripOuterParagraphTags(msg.Completion)))
+                                                            </span>
+                                                        }
+
                                                 </div>
                                             </div>
                                         }
@@ -473,10 +487,14 @@ else
                 string messageToProcess = userMessage;
                 userMessage = string.Empty;
                 StateHasChanged();
+                
+                //Need this delay to give the browser enough time to render the MessagesInChatdiv.
+                //If this doesn't exist then it is not able to scoll to the bottom.
+                await Task.Delay(100);
+                await js.InvokeVoidAsync("scrollToBottom", "MessagesInChatdiv");
 
                 //Look up possible knowledge from the memory store
                 var answer = await kernelMemory!.AskAsync(messageToProcess, currentSession.Id);
-
                 if (!answer.NoResult)
                 {
                     history.AddUserMessage("Here is some supporting information:");
@@ -488,8 +506,6 @@ else
                 history.AddUserMessage(messageToProcess);
 
                 await StreamChatCompletionAsync(history,message, chatCompletionService);
-                await js.InvokeVoidAsync("scrollToBottom", "MessagesInChatdiv");
-
             }
         }
         catch (Exception ex)
@@ -812,6 +828,7 @@ else
 
 
         loadingComplete = true;
+
         StateHasChanged();
     }
 

@@ -3,6 +3,7 @@
 @using BlazorAIChat.Components
 @inject ChatHistoryService chatHistoryService
 @inject NavigationManager NavigationManager
+
 <div class="h-100 d-flex flex-column" style="min-width: 275px;">
 
     <div class="navbar navbar-dark bg-primary">
@@ -166,6 +167,7 @@
         }
 
         await OnChatClicked.InvokeAsync(currentSession);
+
         return 0;
     }
 
