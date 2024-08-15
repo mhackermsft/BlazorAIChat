@@ -28,7 +28,7 @@ Retrieval-augmented generation (RAG) is essential for AI chat because it enhance
 
 RAG also helps address the limited context window of large language models by only sending relevant knowledge to the model.
 
-This demo utilizes a basic form of RAG that extracts the text from the uploaded documents, splits the content at paragraphs, and then generate embeddings for each paragraph. The results are stored in a SQLite database. The original source document is not stored in the original format.
+This demo utilizes a basic form of RAG that extracts the text from the uploaded documents, splits the content at paragraphs, and then generate embeddings for each paragraph. The results are stored by default on the web server filesystem. The original source document is not stored in the original format.
 
 When a user chats with the solution, a semantic search is completed across the stored paragraphs and the 10 most related paragraphs are returned to the large language model as knowledge so it can attempt to answer the user's question.
 
