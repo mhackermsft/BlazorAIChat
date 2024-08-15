@@ -177,3 +177,6 @@ For more information on managing your Azure OpenAI service quotas, please visit 
 
 ## Disclaimer
 This code is for demonstration purposes only. It has not been evaluated or reviewed for production purposes. Please utilize caution and do your own due diligence before using this code. I am not responsible for any issues you experience or damages caused by the use or misuse of this code.
+
+## Credits
+Thank you to the contributors of the Azure-Samples / cosmosdb-chatgpt project. The UI for this demo application was based upon some of their great work. You can check out that project here: https://github.com/Azure-Samples/cosmosdb-chatgpt
