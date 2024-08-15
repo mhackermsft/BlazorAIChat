@@ -20,29 +20,15 @@ namespace BlazorAIChat.Models
 
         public string Name { get; set; }
 
-        [JsonIgnore]
-        public List<Message> Messages { get; set; }
+        public DateTime SessionCreatedAt { get; set; }
 
         public Session()
         {
             Id = Guid.NewGuid().ToString();
             Type = nameof(Session);
             SessionId = this.Id;
-            Name = "New Chat";
+            Name = Constants.NEW_CHAT;
             UserId = string.Empty;
-            Messages = new List<Message>();
-        }
-
-        public void AddMessage(Message message)
-        {
-            Messages.Add(message);
-        }
-
-        public void UpdateMessage(Message message)
-        {
-            var match = Messages.Single(m => m.Id == message.Id);
-            var index = Messages.IndexOf(match);
-            Messages[index] = message;
         }
     }
 }

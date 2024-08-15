@@ -7,7 +7,7 @@ using Container = Microsoft.Azure.Cosmos.Container;
 
 namespace BlazorAIChat.Services
 {
-    public class CosmosDbService
+    public class ChatHistoryService
     {
 
         private readonly Container _chatContainer;
@@ -23,7 +23,7 @@ namespace BlazorAIChat.Services
         /// <remarks>
         /// This constructor will validate credentials and create a service client instance.
         /// </remarks>
-        public CosmosDbService(IConfiguration config)
+        public ChatHistoryService(IConfiguration config)
         {
             var connectionString = config["ConnectionStrings:CosmosDb"];
             var databaseName = config["CosmosDb:Database"];

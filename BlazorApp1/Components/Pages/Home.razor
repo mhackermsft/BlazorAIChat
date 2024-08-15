@@ -4,7 +4,7 @@
 @inject IJSRuntime js
 @inject NavigationManager NavigationManager
 @inject AuthenticationStateProvider AuthenticationStateProvider
-@inject CosmosDbService cosmosDbService
+@inject ChatHistoryService chatHistoryService
 @inject AIChatDBContext dbContext
 @inject UserService userService
 
@@ -517,8 +517,8 @@ else
             //store the chat session history
             await UpdateSessionAndMessage(currentSession?.Id??string.Empty, message);
 
-            //Update the chat session name if it is the default name
-            if (currentSession.Name=="New Chat")
+            //Update the chat session name if it is the default new chat name
+            if (currentSession.Name==Models.Constants.NEW_CHAT)
             {
                 currentSession.Name = await SummarizeChatSessionNameAsync(currentSession?.SessionId);
                 NavMenu.UpdateNavMenuDisplay("summarized text", currentSession);
@@ -765,7 +765,7 @@ else
     {
         if (currentSession is not null)
         {
-            messagesInChat = await cosmosDbService.GetSessionMessagesAsync(currentSession.SessionId);
+            messagesInChat = await chatHistoryService.GetSessionMessagesAsync(currentSession.SessionId);
         }
 
         //setup chat history object
@@ -797,10 +797,10 @@ else
     {
 
         //Update the tokens used in the session
-        Session session = await cosmosDbService.GetSessionAsync(sessionId);
+        Session session = await chatHistoryService.GetSessionAsync(sessionId);
 
         //Insert new message and Update session in a transaction
-        await cosmosDbService.UpsertSessionBatchAsync(session, chatMessage);
+        await chatHistoryService.UpsertSessionBatchAsync(session, chatMessage);
 
     }
 
@@ -809,7 +809,7 @@ else
         ArgumentNullException.ThrowIfNull(sessionId);
 
         //Get the messages for the session
-        List<Message> messages = await cosmosDbService.GetSessionMessagesAsync(sessionId);
+        List<Message> messages = await chatHistoryService.GetSessionMessagesAsync(sessionId);
 
         //Create a conversation string from the messages
         string conversationText = string.Join(" ", messages.Select(m => m.Prompt + " " + m.Completion));
@@ -833,9 +833,9 @@ else
         var result = await kernel.GetRequiredService<IChatCompletionService>().GetChatMessageContentAsync(skChatHistory, settings);
         completionText = result.Items[0].ToString()!;
 
-        Session session = await cosmosDbService.GetSessionAsync(sessionId);
+        Session session = await chatHistoryService.GetSessionAsync(sessionId);
         session.Name = completionText;
-        await cosmosDbService.UpdateSessionAsync(session);
+        await chatHistoryService.UpdateSessionAsync(session);
         return completionText;
     }
 

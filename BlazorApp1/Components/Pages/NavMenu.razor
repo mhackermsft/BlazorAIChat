@@ -1,7 +1,7 @@
 ﻿@using BlazorAIChat.Models
 @using BlazorAIChat.Services
 @using BlazorAIChat.Components
-@inject CosmosDbService cosmosDbService
+@inject ChatHistoryService chatHistoryService
 <div class="h-100 d-flex flex-column" style="min-width: 275px;">
 
     <div class="navbar navbar-dark bg-primary">
@@ -29,11 +29,11 @@
                         </NavLink>
                     </div>
                     <div class="row row-cols-1 g-2 px-2 d-flex flex-column align-items-start">
-                        @foreach (var session in ChatSessions)
+                        @foreach (var session in _chatSessions)
                         {
                             <div class="col">
                                 <div class="card @(IsActiveSession(session.SessionId) ? "bg-primary text-light" : "bg-primary opacity-50 text-light")">
-                                    <div class="card-body user-select-none" role="button" @onclick="@(e => LoadChat(session.SessionId,session.Name))">
+                                    <div class="card-body user-select-none" role="button" @onclick="@(e => LoadChat(session.SessionId))">
                                         <a class="card-title text-decoration-none h6">
                                             @if (IsActiveSession(session.SessionId))
                                             {
@@ -91,10 +91,7 @@
     public User? User { get; set; } = null;
 
     [Parameter]
-    public EventCallback<Session> OnChatClicked { get; set; } = default!;
-
-    [Parameter]
-    public static List<Session> ChatSessions { get; set; } = new();
+    public EventCallback<Session> OnChatClicked { get; set; }
 
     [Parameter]
     public EventCallback OnNavBarVisibilityUpdated { get; set; }
@@ -102,28 +99,19 @@
     [Parameter]
     public EventCallback OnDeleteUploadedDocs { get; set; }
 
-
+    private List<Session> _chatSessions { get; set; } = new();
     private string? _sessionId;
     private string? _popUpText;
     private bool _deletePopUpOpen = false;
     private bool _loadingComplete = false;
     private bool _renamePopUpOpen = false;
 
-    public Session? CurrentSession;
+    private Session? currentSession;
 
-    private static event EventHandler<string>? OnNavMenuChanged;
 
     protected override void OnInitialized()
     {
-        OnNavMenuChanged += async (o, e) =>
-        {
-            await this.InvokeAsync(async () =>
-            {
-                this.StateHasChanged();
 
-                await LoadCurrentChatAsync();
-            });
-        };
     }
 
     protected override async Task OnParametersSetAsync()
@@ -131,21 +119,21 @@
         if (_loadingComplete == true)
             return;
 
-        ChatSessions = await cosmosDbService.GetSessionsAsync(User?.Id??string.Empty);
-
-        if (CurrentSession is not null && ChatSessions is not null & ChatSessions?.Count > 0)
-        {
-            var match = ChatSessions?.FirstOrDefault();
-            if (match is not null)
-            {
-                CurrentSession.SessionId = match.SessionId;
-                CurrentSession.Name = match.Name;
-            }
-        }
+        await SetMostRecentSession();
 
         _loadingComplete = true;
         await LoadCurrentChatAsync();
 
+    }
+
+    private async Task SetMostRecentSession()
+    {
+        _chatSessions = await chatHistoryService.GetSessionsAsync(User?.Id ?? Models.Constants.NEW_CHAT);
+
+        if (_chatSessions.Count > 0)
+            currentSession = _chatSessions.OrderByDescending(x => x.SessionCreatedAt).FirstOrDefault();
+        else
+            currentSession = null;
     }
 
     async private Task ToggleNavMenu()
@@ -156,29 +144,29 @@
     private async Task<int> LoadCurrentChatAsync()
     {
         int index = 0;
-        if (CurrentSession is not null & ChatSessions is not null & ChatSessions?.Count > 0)
+        if (currentSession is not null & _chatSessions is not null & _chatSessions?.Count > 0)
         {
-            index = ChatSessions?.FindIndex(s => s.SessionId == CurrentSession?.SessionId) ?? 0;
+            index = _chatSessions?.FindIndex(s => s.SessionId == currentSession?.SessionId) ?? 0;
         }
-        if (CurrentSession is null || index < 0)
+        if (currentSession is null || index < 0)
         {
-            CurrentSession = new Session();
-            CurrentSession.SessionId = Constants.EMPTY_SESSION;
-            CurrentSession.Name = string.Empty;
+            currentSession = new Session();
+            currentSession.SessionId = Constants.EMPTY_SESSION;
+            currentSession.Name = Constants.NEW_CHAT;
 
-            if (ChatSessions is not null & ChatSessions?.Count > 0)
+            if (_chatSessions is not null & _chatSessions?.Count > 0)
             {
-                var match = ChatSessions?.FirstOrDefault();
+                var match = _chatSessions?.FirstOrDefault();
                 if (match is not null)
                 {
-                    CurrentSession.Id = match.SessionId;
-                    CurrentSession.SessionId = match.SessionId;
-                    CurrentSession.Name = match.Name;
+                    currentSession.Id = match.SessionId;
+                    currentSession.SessionId = match.SessionId;
+                    currentSession.Name = match.Name;
                 }
             }
         }
 
-        await OnChatClicked.InvokeAsync(CurrentSession);
+        await OnChatClicked.InvokeAsync(currentSession);
         return 0;
     }
 
@@ -186,43 +174,32 @@
     {
         Session session = new();
         session.UserId = User?.Id??string.Empty;
-        await cosmosDbService.InsertSessionAsync(session);
-        ChatSessions.Add(session);
-        if (ChatSessions.Count == 1)
-        {
-            CurrentSession = ChatSessions[0] with { };
-            await LoadCurrentChatAsync();
-        }
-        else
-            CurrentSession = session;
+        await chatHistoryService.InsertSessionAsync(session);
+        _chatSessions.Add(session);
+
+        currentSession = session;
 
         UpdateNavMenuDisplay("Add");
+        LoadChat(session.SessionId);
+        StateHasChanged();
     }
 
-    public void UpdateNavMenuDisplay(string reason = "", Session? _session = null)
+    public async void UpdateNavMenuDisplay(string reason = "", Session? _session = null)
     {
         if (_session is not null)
         {
-            int index = ChatSessions.FindIndex(s => s.SessionId == _session.SessionId);
-            ChatSessions[index].Name = _session.Name;
+            int index = _chatSessions.FindIndex(s => s.SessionId == _session.SessionId);
+            _chatSessions[index].Name = _session.Name;
         }
 
-        if (OnNavMenuChanged is not null)
-        {
-            OnNavMenuChanged.Invoke(null, reason);
-        }
     }
 
-    async private Task<int> LoadChat(string _sessionId, string sessionName)
+    async private Task<int> LoadChat(string _sessionId)
     {
-        if (ChatSessions is null) return 0;
+        if (_chatSessions is null) return 0;
 
-        if (CurrentSession is null)
-            CurrentSession = new Session();
-
-        CurrentSession.Id= _sessionId;
-        CurrentSession.SessionId = _sessionId;
-        CurrentSession.Name = sessionName;
+        //get the session from _chatSessions
+        currentSession = _chatSessions.Find(s => s.SessionId == _sessionId);
 
         await LoadCurrentChatAsync();
 
@@ -238,43 +215,22 @@
 
     private async Task OnConfirmationClose(bool isOk)
     {
-        bool updateCurrentChat = false;
-
-        if (CurrentSession is not null & _sessionId == CurrentSession?.SessionId)
-            updateCurrentChat = true;
 
         if (isOk)
         {
             _deletePopUpOpen = false;
 
             if (_sessionId!=null)
-                await cosmosDbService.DeleteSessionAndMessagesAsync(_sessionId);
+                await chatHistoryService.DeleteSessionAndMessagesAsync(_sessionId);
 
-            int index = ChatSessions.FindIndex(s => s.SessionId == _sessionId);
-            ChatSessions.RemoveAt(index);
+            int index = _chatSessions.FindIndex(s => s.SessionId == _sessionId);
+            _chatSessions.RemoveAt(index);
 
             _deletePopUpOpen = false;
 
             UpdateNavMenuDisplay("Delete");
 
-            if (!updateCurrentChat)
-                return;
-
-            CurrentSession = new Session();
-            CurrentSession.SessionId = Constants.EMPTY_SESSION;
-            CurrentSession.Name = string.Empty;
-
-            if (ChatSessions is not null & ChatSessions?.Count > 0)
-            {
-                var match = ChatSessions?.FirstOrDefault();
-                if (match is not null)
-                {
-                    CurrentSession.Id = match.SessionId;
-                    CurrentSession.SessionId = match.SessionId;
-                    CurrentSession.Name = match.Name;
-                }
-            }
-
+            await SetMostRecentSession();
             await LoadCurrentChatAsync();
         }
 
@@ -294,21 +250,21 @@
         {
             bool updateCurrentChat = false;
 
-            if (_sessionId is null || CurrentSession is null)
+            if (_sessionId is null || currentSession is null)
                 return;
 
-            if (_sessionId == CurrentSession?.SessionId)
+            if (_sessionId == currentSession?.SessionId)
             {
                 updateCurrentChat = true;
             }
 
-            Session session = await cosmosDbService.GetSessionAsync(_sessionId);
+            Session session = await chatHistoryService.GetSessionAsync(_sessionId);
             session.Name = newName;
-            await cosmosDbService.UpdateSessionAsync(session);
+            await chatHistoryService.UpdateSessionAsync(session);
 
 
-            int index = ChatSessions.FindIndex(s => s.SessionId == _sessionId);
-            ChatSessions[index].Name = newName;
+            int index = _chatSessions.FindIndex(s => s.SessionId == _sessionId);
+            _chatSessions[index].Name = newName;
 
             _renamePopUpOpen = false;
 
@@ -319,9 +275,9 @@
                 return;
             }
 
-            if (CurrentSession is not null)
+            if (currentSession is not null)
             {
-                CurrentSession.Name = newName;
+                currentSession.Name = newName;
             }
             await LoadCurrentChatAsync();
         }
@@ -329,7 +285,7 @@
         _renamePopUpOpen = false;
     }
 
-    private bool IsActiveSession(string _sessionId) => CurrentSession switch
+    private bool IsActiveSession(string _sessionId) => currentSession switch
     {
         null => true,
         (Session s) when s.SessionId == _sessionId => true,

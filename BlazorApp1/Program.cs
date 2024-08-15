@@ -11,7 +11,7 @@ var builder = WebApplication.CreateBuilder(args);
 //Add SQLite database context, used with EF for config and user authorization data.
 builder.Services.AddDbContext<AIChatDBContext>();
 builder.Services.AddScoped<UserService>();
-builder.Services.AddSingleton<CosmosDbService>();
+builder.Services.AddSingleton<ChatHistoryService>();
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
