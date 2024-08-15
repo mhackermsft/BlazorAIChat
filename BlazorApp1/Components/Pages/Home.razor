@@ -296,7 +296,6 @@ else
     private string alertType { get; set; } = string.Empty;
 
     const long maxFileSizeBytes = 1073741824; // 1GB
-    string welcomeMessage = string.Empty;
 
     bool chatModelSupportsImages = false;
     byte[]? uploadImageByteArray = null;
@@ -359,9 +358,6 @@ else
             var dbConfig = dbContext.Config.FirstOrDefault();
             if (dbConfig != null)
                 config = dbConfig;       
-
-            //Setup the welcome message
-            welcomeMessage = $"Welcome to the Azure OpenAI Chat demo! You can ask your questions using the text box below. Additionally, you can upload DOCX, PDF, XLSX, {(chatModelSupportsImages?"Images, ":string.Empty)} or TXT files (up to 1GB) to ask questions about their content.<br/>";
 
             // Create a kernel with Azure OpenAI chat completion
             builder = Kernel.CreateBuilder()
@@ -664,7 +660,14 @@ else
                 return;
             };
 
-            uploadImageType = GetImageMimeType(filename);
+            uploadImageType = ImageUtils.GetMimeTypeFromImage(memoryStream);
+
+            if (string.IsNullOrEmpty(uploadImageType))
+            {
+                ShowAlert("The image you uploaded is not a supported image type.", AlertTypeEnum.warning);
+                return;
+            }
+
             uploadImageByteArray = memoryStream.ToArray();
             string base64Image = ConvertByteImageToBase64Data(uploadImageByteArray, uploadImageType);
             Message message = new Message(currentSession.Id, $"{base64Image}", "What would you like to know about that image?");
@@ -890,27 +893,7 @@ else
         return Regex.Replace(input, pattern, "$1", RegexOptions.IgnoreCase | RegexOptions.Singleline);
     }
 
-    private string GetImageMimeType(string filename)
-    {
-        if (filename.EndsWith(".jpg") || filename.EndsWith(".jpeg"))
-        {
-            uploadImageType = "image/jpeg";
-        }
-        else if (filename.EndsWith(".png"))
-        {
-            uploadImageType = "image/png";
-        }
-        else if (filename.EndsWith(".gif"))
-        {
-            uploadImageType = "image/gif";
-        }
-        else
-        {
-            uploadImageType = string.Empty;
-        }
 
-        return uploadImageType;
-    }
 
     private string ExtractMimeType(string dataUrl)
     {

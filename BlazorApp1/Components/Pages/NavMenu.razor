@@ -221,7 +221,8 @@
         {
             _deletePopUpOpen = false;
 
-            DeleteUploadedDocs(_sessionId);
+            if (_sessionId !=null)
+                DeleteUploadedDocs(_sessionId);
 
             if (_sessionId!=null)
                 await chatHistoryService.DeleteSessionAndMessagesAsync(_sessionId);
