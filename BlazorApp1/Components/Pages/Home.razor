@@ -103,7 +103,11 @@ else
                                 <path d="m182.49 96.66-.07.05.07-.04Z" />
                             </svg>
                             <span class="navbar-brand mb-0 ms-1 h1">Blazor Azure OpenAI Chat</span>
-                            @if (appSettings.Value.UsesPostgreSQL)
+                            @if (appSettings.Value.UsesAzureAISearch)
+                            {
+                                <h6><span class="badge bg-success ms-2">Azure AI Search</span></h6>
+                            }
+                            else if (appSettings.Value.UsesPostgreSQL)
                             {
                                 <h6><span class="badge bg-success ms-2">PostgreSQL Memory Storage</span></h6>
                             }
@@ -111,15 +115,12 @@ else
                             {
                                 <h6><span class="badge bg-success ms-2">File Memory Storage</span></h6>
                             }
-                            @if (appSettings.Value.UsesAzureAISearch)
-                            {
-                                <h6><span class="badge bg-success ms-2">Azure AI Search</span></h6>
-                            }
+
                             @if (appSettings.Value.UsesAzureDocIntelligence)
                             {
                                 <h6><span class="badge bg-success ms-2">Azure Doc Intelligence</span></h6>
                             }
-                            @if (appSettings.Value.UsesAzureDocIntelligence)
+                            @if (appSettings.Value.UsesCosmosDb)
                             {
                                 <h6><span class="badge bg-success ms-2">Cosmos DB Chat History</span></h6>
                             }

@@ -2,11 +2,16 @@
 @using BlazorAIChat.Services
 @using BlazorAIChat.Components
 @inject ChatHistoryService chatHistoryService
+@inject NavigationManager NavigationManager
 <div class="h-100 d-flex flex-column" style="min-width: 275px;">
 
     <div class="navbar navbar-dark bg-primary">
         <div class="w-100 d-flex align-items-center justify-content-center ">
             <span class="navbar-brand mb-0 h1">@User?.Name</span>
+            @if (User!=null && User.Role == UserRoles.Admin)
+            {
+                <button class="btn btn-sm btn-link text-light" @onclick="@(()=>NavigationManager.NavigateTo("/admin"))">Admin</button>
+            }
         </div>
     </div>
 
