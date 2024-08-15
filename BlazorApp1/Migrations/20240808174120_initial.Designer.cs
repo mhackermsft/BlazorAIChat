@@ -12,7 +12,7 @@ namespace BlazorAIChat.Migrations
 {
     [DbContext(typeof(AIChatDBContext))]
     [Migration("20240808174120_initial")]
-    partial class initial
+    partial class InitialMigration
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)

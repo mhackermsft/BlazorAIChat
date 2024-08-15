@@ -260,8 +260,6 @@ else
     private string alertMessage { get; set; } = string.Empty;
     private string alertType { get; set; } = string.Empty;
 
-    string clearCancelText = "Clear";
-
     const long maxFileSizeBytes = 1073741824; // 1GB
     string welcomeMessage = string.Empty;
 
@@ -425,7 +423,7 @@ else
         IsNavMenuCollapsed = !IsNavMenuCollapsed;
     }
 
-    private async void Stop()
+    private void Stop()
     {
         //If this is called when the AI is responding, then stop the response
         if (isResponding)
@@ -486,7 +484,6 @@ else
             var markdownBuilder = new StringBuilder();
             var finalResults = new StringBuilder();
             isResponding = true;
-            clearCancelText = "Stop";
             StateHasChanged();
 
             await foreach (var chatUpdate in chatCompletionService.GetStreamingChatMessageContentsAsync(history))
@@ -494,7 +491,6 @@ else
                 //If the user has requested to stop responding, then break out of the loop
                 if (stopResponding)
                 {
-                    clearCancelText = "Clear";
                     break;
                 }
 
@@ -527,13 +523,11 @@ else
             // Scroll to the bottom of the chat window
             await js.InvokeVoidAsync("scrollToBottom", "MessagesInChatdiv");
             isResponding = false;
-            clearCancelText = "Clear";
             StateHasChanged();
         }
         catch (Exception ex)
         {
             isResponding = false;
-            clearCancelText = "Clear";
             StateHasChanged();
             Console.WriteLine($"StreamChatCompletionAsync error: {ex.Message}");
         }

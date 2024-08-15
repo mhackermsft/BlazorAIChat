@@ -12,7 +12,7 @@ namespace BlazorAIChat.Migrations
 {
     [DbContext(typeof(AIChatDBContext))]
     [Migration("20240813233512_updated config")]
-    partial class updatedconfig
+    partial class UpdatedConfig
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)

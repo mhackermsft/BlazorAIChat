@@ -180,11 +180,11 @@
         currentSession = session;
 
         UpdateNavMenuDisplay("Add");
-        LoadChat(session.SessionId);
+        await LoadChat(session.SessionId);
         StateHasChanged();
     }
 
-    public async void UpdateNavMenuDisplay(string reason = "", Session? _session = null)
+    public void UpdateNavMenuDisplay(string reason = "", Session? _session = null)
     {
         if (_session is not null)
         {
