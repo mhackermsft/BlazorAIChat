@@ -28,6 +28,7 @@
     <PackageReference Include="Microsoft.SemanticKernel.Connectors.AzureCosmosDBMongoDB" Version="1.17.1-alpha" />
     <PackageReference Include="Microsoft.SemanticKernel.Connectors.Sqlite" Version="1.17.1-alpha" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="Polly" Version="8.4.1" />
   </ItemGroup>
 
   <ItemGroup>

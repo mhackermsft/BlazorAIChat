@@ -260,7 +260,7 @@ else
 }
 
 @code {
-  
+
     //NavMenu component
     private NavMenu? NavMenu = default;
 
@@ -280,7 +280,7 @@ else
     private MemoryServerless? kernelMemory = null;
     private IChatCompletionService? chatCompletionService = null;
     private ChatHistory history = new ChatHistory();
-   
+
     //Markdown processor
     Markdown md = new Markdown();
 
@@ -471,14 +471,14 @@ else
                 string messageToProcess = userMessage;
                 userMessage = string.Empty;
                 StateHasChanged();
-                
+
                 //Need this delay to give the browser enough time to render the MessagesInChatdiv.
                 //If this doesn't exist then it is not able to scoll to the bottom.
                 await Task.Delay(100);
                 await js.InvokeVoidAsync("scrollToBottom", "MessagesInChatdiv");
 
                 //Look up possible knowledge from the memory store
-                var answer = await kernelMemory!.AskAsync(messageToProcess, currentSession.Id);
+                var answer = await RetryHelper.RetryAsync<MemoryAnswer>(()=> kernelMemory!.AskAsync(messageToProcess, currentSession.Id),TimeSpan.FromSeconds(1),4);
                 if (!answer.NoResult)
                 {
                     history.AddUserMessage("Here is some supporting information:");
@@ -510,27 +510,32 @@ else
             isResponding = true;
             StateHasChanged();
 
-            await foreach (var chatUpdate in chatCompletionService.GetStreamingChatMessageContentsAsync(history))
+            await RetryHelper.RetryAsync<Task>(async ()=>
             {
-                //If the user has requested to stop responding, then break out of the loop
-                if (stopResponding)
+                await foreach (var chatUpdate in chatCompletionService.GetStreamingChatMessageContentsAsync(history))
                 {
-                    break;
-                }
+                    //If the user has requested to stop responding, then break out of the loop
+                    if (stopResponding)
+                    {
+                        break;
+                    }
 
-                //If the chat update has content, then append it to the results
-                if (chatUpdate?.Content != null)
-                {
-                    finalResults.Append(chatUpdate.Content);
-                    markdownBuilder.Append(chatUpdate.Content);
-                    string partialHTML = md.Transform(markdownBuilder.ToString());
+                    //If the chat update has content, then append it to the results
+                    if (chatUpdate?.Content != null)
+                    {
+                        finalResults.Append(chatUpdate.Content);
+                        markdownBuilder.Append(chatUpdate.Content);
+                        string partialHTML = md.Transform(markdownBuilder.ToString());
 
-                    message.Completion = FixupTextForCode(partialHTML.ToString());
-                    // Scroll to the bottom of the chat window
-                    await js.InvokeVoidAsync("scrollToBottom", "MessagesInChatdiv");
-                    StateHasChanged();
+                        message.Completion = FixupTextForCode(partialHTML.ToString());
+                        // Scroll to the bottom of the chat window
+                        await js.InvokeVoidAsync("scrollToBottom", "MessagesInChatdiv");
+                        StateHasChanged();
+                    }
                 }
-            }
+                return Task.CompletedTask;
+            },TimeSpan.FromSeconds(1),4);
+       
             message.Completion = md.Transform(FixupTextForCode(finalResults.ToString()));
             history.AddAssistantMessage(finalResults.ToString());
 
@@ -706,7 +711,8 @@ else
             TagCollection tags = new TagCollection();
             tags.Add("user", currentUser.Id);
             memoryStream.Position = 0;
-            await kernelMemory.ImportDocumentAsync(memoryStream, filename,docId, tags, index);
+
+            await RetryHelper.RetryAsync<string>(() => kernelMemory.ImportDocumentAsync(memoryStream, filename, docId, tags, index), TimeSpan.FromSeconds(1), 4);
 
             while(!await kernelMemory.IsDocumentReadyAsync(docId,index))
             {
