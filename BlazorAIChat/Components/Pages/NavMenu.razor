@@ -109,11 +109,7 @@
     private Session? currentSession;
 
 
-    protected override void OnInitialized()
-    {
-
-    }
-
+    // This method is called when the component is ready to start, having received its initial parameters.
     protected override async Task OnParametersSetAsync()
     {
         if (_loadingComplete == true)
@@ -126,6 +122,7 @@
 
     }
 
+    // Retrieve the most recent chat session if one exists for the user.
     private async Task SetMostRecentSession()
     {
         _chatSessions = await chatHistoryService.GetSessionsAsync(User?.Id ?? Models.Constants.NEW_CHAT);
@@ -136,11 +133,7 @@
             currentSession = null;
     }
 
-    async private Task ToggleNavMenu()
-    {
-        await OnNavBarVisibilityUpdated.InvokeAsync();
-    }
-
+    // Load the current chat session.
     private async Task<int> LoadCurrentChatAsync()
     {
         int index = 0;
@@ -171,6 +164,7 @@
         return 0;
     }
 
+    // Create a new chat session.
     private async Task NewChat()
     {
         Session session = new();
@@ -185,6 +179,7 @@
         StateHasChanged();
     }
 
+    // Update the navigation menu display. Used when the session name is updated
     public void UpdateNavMenuDisplay(string reason = "", Session? _session = null)
     {
         if (_session is not null)
@@ -195,6 +190,7 @@
 
     }
 
+    // Load the chat session based on the session id.
     async private Task<int> LoadChat(string _sessionId)
     {
         if (_chatSessions is null) return 0;
@@ -207,6 +203,7 @@
         return 0;
     }
 
+    // Open the confirmation dialog to delete a chat session.
     private void OpenConfirmation(string id, string title)
     {
         _deletePopUpOpen = true;
@@ -214,6 +211,9 @@
         _popUpText = $"Do you want to delete the chat \"{title}\"?";
     }
 
+    // Close the confirmation dialog to delete a chat session.
+    // If the user agreed to delete the session, all uploaded documents are deleted
+    // and the chat session is deleted.
     private async Task OnConfirmationClose(bool isOk)
     {
 
@@ -241,6 +241,8 @@
         _deletePopUpOpen = false;
     }
 
+    // Open the input dialog to rename a chat session.
+    // Completes the rename process.
     private void OpenInput(string id, string title)
     {
         _renamePopUpOpen = true;
@@ -248,6 +250,7 @@
         _popUpText = title;
     }
 
+    // Close the input dialog to rename a chat session.
     private async Task OnInputClose(string newName)
     {
         if (newName != "")
@@ -289,6 +292,7 @@
         _renamePopUpOpen = false;
     }
 
+    // Check if the session is active.
     private bool IsActiveSession(string _sessionId) => currentSession switch
     {
         null => true,
@@ -296,12 +300,15 @@
         _ => false
     };
 
+    // Creates a substring of the text that is under the maximum length.
     public string SafeSubstring(string text, int maxLength) => text switch
     {
         null => string.Empty,
         _ => text.Length > maxLength ? text.Substring(0, maxLength) + "..." : text
     };
 
+    // Invokes the delete uploaded documents event.
+    // This is captured by the chat component to delete all uploaded documents.
     private void DeleteUploadedDocs(string sessionId)
     {
         OnDeleteUploadedDocs.InvokeAsync(sessionId);

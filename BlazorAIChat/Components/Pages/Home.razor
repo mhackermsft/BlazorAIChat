@@ -304,7 +304,6 @@ else
     const long maxFileSizeBytes = 1073741824; // 1GB
 
     //Properties for image processing
-    bool chatModelSupportsImages = false;
     byte[]? uploadImageByteArray = null;
     string uploadImageType= string.Empty;
 
@@ -315,12 +314,14 @@ else
         Summarize this text. One to three words maximum length.
         Plain text only. No punctuation, markup or tags.";
 
+    // Initialization of the page
     protected override async Task OnInitializedAsync()
     {
         NavMenu = new NavMenu();
 
         try
         {
+            //Get the current user
             currentUser = await userService.GetCurrentUserAsync();
 
         }
@@ -331,7 +332,8 @@ else
 
         try
         {
-            AppSettings settings = appSettings.Value;
+            //Get the app settings from the appsettings.json file or App Service configuration
+            settings = appSettings.Value;
 
             //Verify if the App Service needs configuration.
             if (currentUser.Id=="Guest User" && settings.RequireEasyAuth)
@@ -346,7 +348,7 @@ else
             if (dbConfig != null)
                 config = dbConfig;       
 
-            // Create a kernel with Azure OpenAI chat completion. Both chat completion and embedding use the same OpenAI endpoint and key.
+            // Create a kernel builder with Azure OpenAI chat completion. Both chat completion and embedding use the same OpenAI endpoint and key.
             builder = Kernel.CreateBuilder()
             .AddAzureOpenAIChatCompletion(settings.AzureOpenAIChatCompletion.Model, settings.AzureOpenAIChatCompletion.Endpoint, settings.AzureOpenAIChatCompletion.ApiKey)
             .AddAzureOpenAITextEmbeddingGeneration(settings.AzureOpenAIEmbedding.Model, settings.AzureOpenAIChatCompletion.Endpoint, settings.AzureOpenAIChatCompletion.ApiKey);
@@ -357,9 +359,10 @@ else
             // Build the kernel
             kernel = builder.Build();
 
-            //get current file directory
+            //Set file directory for storing knowledge if PostgreSQL or Azure AI Search is not used
             var knnDirectory = "KNN";
 
+            //Setup the memory store
             var kernelMemoryBuilder = new KernelMemoryBuilder()
             .WithAzureOpenAITextEmbeddingGeneration(new AzureOpenAIConfig
                 {
@@ -407,7 +410,7 @@ else
             }
 
             //Configure document intelligence if configured
-            if (!chatModelSupportsImages && settings.UsesAzureDocIntelligence)
+            if (!settings.AzureOpenAIChatCompletion.SupportsImages && settings.UsesAzureDocIntelligence)
             {
                 kernelMemoryBuilder = kernelMemoryBuilder.WithAzureAIDocIntel(new AzureAIDocIntelConfig()
                     {
@@ -417,6 +420,7 @@ else
                     });
             }
 
+            //Build the memory store
             kernelMemory = kernelMemoryBuilder.Build<MemoryServerless>();
 
             //Get reference to the chat completion service
@@ -437,9 +441,9 @@ else
         }
     }
 
+    //Flags that the user has requested the AI to stop responding
     private void Stop()
     {
-        //If this is called when the AI is responding, then stop the response
         if (isResponding)
         {
             stopResponding = true;
@@ -447,6 +451,7 @@ else
     }
 
 
+    //Handles the user's message and sends it to the AI for processing
     private async Task SendMessage()
     {
         try
@@ -457,6 +462,7 @@ else
                 //The user previously requested to stop responding, so reset the flag so it can respond to the new message
                 stopResponding = false;
 
+                //Create a new message object and add it to the mesaagesInChat list. This will allow the UI to display the message while the AI processes it.
                 Message message = new Message(currentSession.Id, userMessage);
                 messagesInChat.Add(message);
 
@@ -483,6 +489,7 @@ else
                 //Add the user message to the chat history
                 history.AddUserMessage(messageToProcess);
 
+                //Start the AI text generation process
                 await StreamChatCompletionAsync(history,message, chatCompletionService);
             }
         }
@@ -493,6 +500,7 @@ else
         }
     }
 
+    //Generates text from the AI and streams it to the chat window
     public async Task StreamChatCompletionAsync(ChatHistory history,Message message, IChatCompletionService chatCompletionService)
     {
         try
@@ -549,6 +557,7 @@ else
         }
     }
 
+    //If the user presses the enter key, send their message
     private async Task HandleKeyDown(KeyboardEventArgs e)
     {
         if (e.Key == "Enter")
@@ -557,6 +566,7 @@ else
         }
     }
 
+    //Handles the file selected event for the InputFile component
     private async Task HandleFileSelected(InputFileChangeEventArgs e)
     {
         selectedFile = e.File;
@@ -578,6 +588,7 @@ else
         }
     }
 
+    // Uploads the file to the server and processes it. The file is never stored in the original format on the server.
     private async Task UploadFile()
     {
         try
@@ -591,24 +602,26 @@ else
             // Only upload PDFs, DOCX, and TXT files
             var fileName = selectedFile.Name.ToLower();
             if (!(fileName.EndsWith(".pdf") || fileName.EndsWith(".docx") || fileName.EndsWith(".xlsx") || fileName.EndsWith(".pptx") || fileName.EndsWith(".txt") ||
-                  (chatModelSupportsImages && (fileName.EndsWith(".jpg") || fileName.EndsWith(".jpeg") || fileName.EndsWith(".png") || fileName.EndsWith(".gif")))))
+                  (settings.AzureOpenAIChatCompletion.SupportsImages && (fileName.EndsWith(".jpg") || fileName.EndsWith(".jpeg") || fileName.EndsWith(".png") || fileName.EndsWith(".gif")))))
             {
-                string alertMessage = (chatModelSupportsImages || settings.UsesAzureDocIntelligence)
+                string alertMessage = (settings.AzureOpenAIChatCompletion.SupportsImages || settings.UsesAzureDocIntelligence)
                     ? "Please upload a PDF, DOCX, XLSX, PPTX, TXT, or image file."
                     : "Please upload a PDF, DOCX, XLSX, PPTX, or TXT file. Image uploads are not supported.";
                 ShowAlert($"The file {selectedFile.Name} is not a supported file type. {alertMessage}", AlertTypeEnum.warning);
                 return;
             }
 
+            // Disable the file input while processing the file
             isFileInputDisabled = true;
             StateHasChanged();
 
+            // Read the file into a memory stream
             using var stream = selectedFile.OpenReadStream(maxAllowedSize: 1073741824); // 1GB
             using var memoryStream = new MemoryStream();
             await stream.CopyToAsync(memoryStream);
 
-            //Check to see how we need to process the files. If we are using Azure AI Search, then we will not process the PDF, DOCX, or TXT files
-            if (chatModelSupportsImages && (fileName.EndsWith(".jpg") || fileName.EndsWith(".jpeg") || fileName.EndsWith(".png") || fileName.EndsWith(".gif")))
+            //Check to see how we need to process the files.
+            if (settings.AzureOpenAIChatCompletion.SupportsImages && (fileName.EndsWith(".jpg") || fileName.EndsWith(".jpeg") || fileName.EndsWith(".png") || fileName.EndsWith(".gif")))
             {
                 ProcessImage(memoryStream, fileName);
             }
@@ -617,6 +630,8 @@ else
                 await ProcessWithKernelMemory(memoryStream, fileName);
             }
 
+            // Clear the file input so it no longer shows the uploaded filename
+            // Set the file input to enabled so the user can upload another file
             if (inputFile != null)
             {
                 await js.InvokeVoidAsync("clearElementValue", inputFile.Element);
@@ -632,6 +647,7 @@ else
         }
     }
 
+    //Handles the processing of image files that have been uploaded by the user.
     private async void ProcessImage(MemoryStream memoryStream, string filename)
     {
         try
@@ -642,6 +658,7 @@ else
                 return;
             };
 
+            //Gets the image MIME type by reading the first few bytes of the image
             uploadImageType = ImageUtils.GetMimeTypeFromImage(memoryStream);
 
             if (string.IsNullOrEmpty(uploadImageType))
@@ -650,12 +667,14 @@ else
                 return;
             }
 
+            //Convert the image to Base64 data and add it to the messagesInChat list so it can be displayed in the chat window
             uploadImageByteArray = memoryStream.ToArray();
             string base64Image = ConvertByteImageToBase64Data(uploadImageByteArray, uploadImageType);
             Message message = new Message(currentSession.Id, $"{base64Image}", "What would you like to know about that image?");
             if (messagesInChat!=null && currentSession!=null)
                 messagesInChat.Add(message);
 
+            //Add the image to the chat history so the AI can process it
             var sendMessage = new ChatMessageContentItemCollection
             {
                 new ImageContent(){Data=uploadImageByteArray, MimeType = uploadImageType }
@@ -666,8 +685,6 @@ else
             await UpdateSessionAndMessage(currentSession?.Id ?? string.Empty, message);
             StateHasChanged();
             await js.InvokeVoidAsync("scrollToBottom", "MessagesInChatdiv");
-
-
             return;
 
         }
@@ -679,6 +696,7 @@ else
         }
     }
 
+    //Processes the uploaded file with Kernel Memory and stores the embeddings in the configured storage system.
     private async Task ProcessWithKernelMemory(MemoryStream memoryStream, string filename)
     {
         if (kernelMemory != null)
@@ -698,6 +716,7 @@ else
         }
     }
 
+    //Shows an alert at the top of the page
     private void ShowAlert(string message, AlertTypeEnum alertType= AlertTypeEnum.info)
     {
 
@@ -706,7 +725,7 @@ else
         StateHasChanged();
     }
 
-
+    //Closes the alert message
     private void CloseAlert()
     {
         alertMessage = string.Empty;
@@ -714,11 +733,14 @@ else
         StateHasChanged();
     }
 
+    // Method to Convert Byte Image to Base64 Data
     private string ConvertByteImageToBase64Data(byte[] byteImage, string mimeType)
     {
         return $"data:{mimeType};base64," + Convert.ToBase64String(byteImage);
     }
 
+
+    // Method to handle user access requests
     private void RequestAccess()
     {
 
@@ -744,6 +766,8 @@ else
             }
             else
             {
+                // The system already has an admin, so any requested user will be added as a user or guest depending on the
+                // AutomaticAccountApproval setting.
                 if (config.AutomaticAccountApproval)
                 {
                     dbContext.Users.Add(new User() { Id = currentUser.Id, Name = currentUser.Name, Role = UserRoles.User, DateRequested = DateTime.Now, DateApproved=DateTime.Now, ApprovedBy=string.Empty, Email=string.Empty  });
@@ -760,6 +784,7 @@ else
         }
     }
 
+    // Fixes up the text for code blocks. This ensures that if the AI generates a code block it looks correct in the UI.
     private string FixupTextForCode(string text)
     {
         Regex rgx = new Regex("```");
@@ -776,6 +801,7 @@ else
         return text;
     }
 
+    // Event handler for the NavMenu component for when a chat session is changed.
     public async void LoadChatEventHandlerAsync(Session session)
     {
         loadingComplete = false;
@@ -784,6 +810,7 @@ else
         await ReloadChatMessagesAsync();
     }
 
+    // Reloads the chat messages for the current session
     public async Task ReloadChatMessagesAsync()
     {
         if (currentSession is not null)
@@ -817,6 +844,7 @@ else
         StateHasChanged();
     }
 
+    // Updates the session and message data in the chat history.
     private async Task UpdateSessionAndMessage(string sessionId, Message chatMessage)
     {
 
@@ -828,6 +856,7 @@ else
 
     }
 
+    // Summarizes the chat session name based on the conversation. This is used to provide a more meaningful name to the chat session.
     public async Task<string> SummarizeChatSessionNameAsync(string? sessionId)
     {
         ArgumentNullException.ThrowIfNull(sessionId);
@@ -863,6 +892,7 @@ else
         return completionText;
     }
 
+    // Strips the outer paragraph tags from the html. This is used to ensure that the AI generated text is displayed correctly in the UI.
     public static string StripOuterParagraphTags(string input)
     {
         if (string.IsNullOrEmpty(input))
@@ -876,7 +906,7 @@ else
     }
 
 
-
+    // Extracts the MIME type from a data URL
     private string ExtractMimeType(string dataUrl)
     {
         if (string.IsNullOrEmpty(dataUrl))
@@ -895,7 +925,7 @@ else
         return dataUrl.Substring(startIndex, endIndex - startIndex);
     }
 
-
+    // Deletes the uploaded documents from the memory store
     private async Task DeleteUploadedDocs(string sessionIdToDelete)
     {
         if (!string.IsNullOrEmpty(sessionIdToDelete))
@@ -908,6 +938,7 @@ else
         }
     }
 
+    // Navigates to the user profile page
     private void GoToProfile()
     {
         if (currentUser.Role!=UserRoles.Guest)
