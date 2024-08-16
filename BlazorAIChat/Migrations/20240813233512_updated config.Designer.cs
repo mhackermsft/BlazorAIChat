@@ -11,8 +11,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace BlazorAIChat.Migrations
 {
     [DbContext(typeof(AIChatDBContext))]
-    [Migration("20240808174120_initial")]
-    partial class initial
+    [Migration("20240813233512_updated config")]
+    partial class UpdatedConfig
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -25,6 +25,9 @@ namespace BlazorAIChat.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
+
+                    b.Property<bool>("AutomaticAccountApproval")
+                        .HasColumnType("INTEGER");
 
                     b.Property<int>("ExpirationDays")
                         .HasColumnType("INTEGER");

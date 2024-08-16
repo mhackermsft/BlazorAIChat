@@ -1,0 +1,947 @@
+﻿@page "/"
+@rendermode InteractiveServer
+@inject IConfiguration Configuration
+@inject IJSRuntime js
+@inject NavigationManager NavigationManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject ChatHistoryService chatHistoryService
+@inject AIChatDBContext dbContext
+@inject UserService userService
+@inject IOptions<AppSettings> appSettings
+
+@using Azure
+@using Azure.AI.DocumentIntelligence
+@using Azure.Search.Documents.Indexes
+@using Azure.Search.Documents.Indexes.Models
+@using Azure.Storage.Blobs
+@using Azure.Storage.Blobs.Models
+@using BlazorAIChat.Components.Shared
+@using Microsoft.AspNetCore.Components.Web
+@using Microsoft.Extensions.Options;
+@using BlazorAIChat.Models
+@using BlazorAIChat.Utils
+@using BlazorAIChat.Services
+@using Microsoft.AspNetCore.Components.Authorization
+@using MarkdownSharp
+@using Microsoft.SemanticKernel
+@using Microsoft.SemanticKernel.ChatCompletion
+@using Microsoft.SemanticKernel.Connectors.OpenAI
+@using Microsoft.SemanticKernel.Connectors.Sqlite
+@using Microsoft.SemanticKernel.Embeddings
+@using Microsoft.SemanticKernel.Memory
+@using Microsoft.KernelMemory
+@using System.Text
+@using System.Text.RegularExpressions
+@using System.Text.Json
+@using System.Net.Http.Headers
+@using System.Security.Claims
+
+<PageTitle>Blazor Azure OpenAI Chat Demo</PageTitle>
+<Alert AlertType="@alertType" AlertMessage="@alertMessage" OnClose="CloseAlert" />
+@if (showNeedsConfigure)
+{
+    <div class="d-flex justify-content-center align-items-center vh-100">
+        <div class="card" style="max-width: 700px; width: 100%;">
+            <div class="card-header">
+                <h5 class="card-title">Configuration Required</h5>
+            </div>
+            <div class="card-body">
+                <p class="card-text">
+                    To complete the application deployment, you must enable authentication on the Azure App Service or you must set RequireEasyAuth to false in the App Service configuration or appsettings.json file.<br /><br />
+                    Setting RequireEasyAuth to false will allow anonymous users to access the application. This also means that all chat history and uploaded knowledge will be shared with all users.
+                </p>
+            </div>
+        </div>
+    </div>
+
+}
+else if (userService.DoesUserNeedToRequestAccess(currentUser, config, settings.RequireEasyAuth))
+{
+    <div class="d-flex justify-content-center">
+        <div class="card" style="max-width: 700px; width: 100%;">
+            <div class="card-header">
+                <h5 class="card-title">Request Access</h5>
+            </div>
+            <div class="card-body">
+                <p class="card-text">
+                    You do not currently have access to this page. If you would like to request access, click on the button below. All requests will be reviewed by the administrator.
+                </p>
+                <button class="btn btn-primary" @onclick="RequestAccess">Request Access</button>
+            </div>
+        </div>
+    </div>
+}
+else
+{
+    @if (userService.IsUserAccountExpired(currentUser, config, settings.RequireEasyAuth))
+    {
+        <div class="row">
+            <div class="col-md-12">
+                Your account has expired. Please contact the administrator to renew your account.
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="h-100 d-flex flex-row justify-content-start">
+            <div class="sidebar">
+                    <NavMenu @ref="@NavMenu" OnChatClicked="LoadChatEventHandlerAsync" User="@currentUser" OnDeleteUploadedDocs="DeleteUploadedDocs" />
+            </div>
+
+            <div class="flex-grow-1">
+                <div class="h-100 mh-100 d-flex flex-column overflow-hidden justify-content-start">
+                            <div class="w-100 navbar navbar-dark bg-primary d-flex flex-row px-4 justify-content-between flex-nowrap">
+                            <div class="d-flex flex-row justify-content-start">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" height="30" fill="currentColor" class="text-light">
+                                    <path d="M415.98 265.82v-.27a17.24 17.24 0 1 0 .01.27ZM224.4 321.87a17.24 17.24 0 1 0 34.48 0 17.24 17.24 0 0 0-34.48 0Z" />
+                                    <path d="M397.92 209.51C395.91 95.77 266.41 51.59 182.48 96.66l-.12 145.45a5.39 5.39 0 0 0 5.39 5.39h41.76a18.85 18.85 0 0 1 18.86 18.86v25.6a29.36 29.36 0 1 1-36.1 28.56 29.1 29.1 0 0 1 22.9-28.56v-26.94a5.65 5.65 0 0 0-5.66-5.66h-41.76a18.59 18.59 0 0 1-18.59-18.59v-135.9c-21.08 14.76-38.2 36.03-47.96 64.23-163.09 22.89-139.5 256.6 22.91 252.74h14.81V305.98a5.39 5.39 0 0 0-5.39-5.39h-23.71a29.36 29.36 0 1 1 0-13.2h23.71a18.59 18.59 0 0 1 18.59 18.59v115.86h148.46V210.59a5.39 5.39 0 0 0-5.39-5.39h-28.83a29.36 29.36 0 1 1-28.56-36.1 29.1 29.1 0 0 1 28.56 22.9h27.75a18.59 18.59 0 0 1 18.59 18.59v94.84h53.89a5.66 5.66 0 0 0 5.66-5.66v-5.39a29.38 29.38 0 0 1 6.73-57.94l1.1-.02a29.37 29.37 0 0 1 29.35 29.39 29.36 29.36 0 0 1-22.9 28.56v5.39a18.85 18.85 0 0 1-18.86 18.86h-53.89v103.2h43.38c61.49 2.64 114.03-46.08 115.32-107.78-1.2-53.49-41.47-98-94.58-104.54Z" />
+                                    <circle cx="101" cy="293.85" r="17.24" />
+                                    <circle cx="257.81" cy="198.46" r="17.24" />
+                                    <path d="m182.49 96.66-.07.05.07-.04Z" />
+                                </svg>
+                                <span class="navbar-brand mb-0 ms-1 h1">Blazor Azure OpenAI Chat</span>
+                                @if (appSettings.Value.UsesAzureAISearch)
+                                {
+                                    <h6><span class="badge bg-success ms-2">Azure AI Search</span></h6>
+                                }
+                                else if (appSettings.Value.UsesPostgreSQL)
+                                {
+                                    <h6><span class="badge bg-success ms-2">PostgreSQL Memory Storage</span></h6>
+                                }
+                                else
+                                {
+                                    <h6><span class="badge bg-success ms-2">File Memory Storage</span></h6>
+                                }
+
+                                @if (appSettings.Value.UsesAzureDocIntelligence)
+                                {
+                                    <h6><span class="badge bg-success ms-2">Azure Doc Intelligence</span></h6>
+                                }
+                                @if (appSettings.Value.UsesCosmosDb)
+                                {
+                                    <h6><span class="badge bg-success ms-2">Cosmos DB Chat History</span></h6>
+                                }
+                                else
+                                {
+                                    <h6><span class="badge bg-success ms-2">SQLite Chat History</span></h6>
+                                }
+
+                            </div>
+                        </div>
+
+                        <div class="px-4 pb-4 pt-2 flex-grow-1 overflow-y-auto overflow-x-hidden align-items-stretch" id="MessagesInChatdiv">
+                            @if (currentSession is null)
+                            {
+                                <div class="alert alert-primary">
+                                    <div class="alert-heading">
+                                        <div class="spinner-border text-primary me-1" role="status">
+                                            <span class="visually-hidden">Loading...</span>
+                                        </div>
+                                        Loading...
+                                    </div>
+                                    <p class="text-nowrap mb-0 fst-italic">
+                                        Please wait while your chat loads.
+                                    </p>
+                                </div>
+                            }
+                            else if (currentSession.SessionId == Models.Constants.EMPTY_SESSION)
+                            {
+                                <div class="alert alert-warning">
+                                    <h4 class="alert-heading">
+                                        <i class="bi bi-exclamation-triangle-fill me-1" aria-hidden="true"></i>
+                                        No Chats Available
+                                    </h4>
+                                    <p class="text-nowrap mb-0 fst-italic">
+                                        Use the New Chat option to start a new chat.
+                                    </p>
+                                </div>
+                            }
+                            else
+                            {
+                                if (messagesInChat is null || loadingComplete == false)
+                                {
+                                    <div class="alert alert-primary">
+                                        <div class="alert-heading">
+                                            <div class="spinner-border text-primary me-1" role="status">
+                                                <span class="visually-hidden">Loading...</span>
+                                            </div>
+                                            Loading...
+                                        </div>
+                                        <p class="text-nowrap mb-0 fst-italic">
+                                            Please wait while your chat loads.
+                                        </p>
+                                    </div>
+                                }
+                                else
+                                {
+                                    if (messagesInChat.Count == 0)
+                                    {
+                                        <div class="alert alert-info">
+                                            <h4 class="alert-heading">
+                                                <i class="bi bi-lightbulb-fill me-1" aria-hidden="true"></i>
+                                                Get Started
+                                            </h4>
+                                            <p class="mb-0 fst-italic">
+                                                Start chatting with your AI assistant. You may upload images or documents to ask questions about their content. Supported document types include Word, Excel, PowerPoint, Text, and PDF.
+                                            </p>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="toast-container position-static w-100 d-flex flex-column align-items-stretch">
+                                            @foreach (var msg in messagesInChat)
+                                            {
+                                                <div class="toast fade show w-75 rounded-3 align-self-start">
+                                                    <div class="toast-header bg-primary text-light">
+                                                        <i class="bi bi-person me-1" aria-hidden="true"></i>
+                                                        <strong class="me-auto text-capitalize">User</strong>
+                                                    </div>
+                                                    <div class="toast-body">
+                                                        <i class="bi bi-grip-vertical mr-2 text-black-50"></i>
+                                                        @if (msg.Prompt.StartsWith("data"))
+                                                        {
+                                                            <img style='max-height:300px; max-width:300px;' src='@msg.Prompt' />
+                                                        }
+                                                        else
+                                                         @(new MarkupString(msg.Prompt))
+                                                    </div>
+                                                </div>
+                                                <div class="toast fade show w-75 rounded-3 align-self-end">
+                                                    <div class="toast-header bg-success text-dark">
+                                                        <i class="bi bi-robot me-1" aria-hidden="true"></i>
+                                                        <strong class="me-auto text-capitalize">Assistant</strong>
+                                                    </div>
+                                                    <div class="toast-body">
+                                                        <i class="bi bi-grip-vertical mr-2 text-black-50"></i>
+                                                    
+                                                            @if(string.IsNullOrEmpty(msg.Completion.Trim()))
+                                                            {
+                                                                <div class="chat-bubble">
+                                                                    <div class="typing">
+                                                                        <div class="dot"></div>
+                                                                        <div class="dot"></div>
+                                                                        <div class="dot"></div>
+                                                                    </div>
+                                                                </div>
+                                                            }
+                                                            else
+                                                            {
+                                                                <span class="display: inline">
+                                                                    @(new MarkupString(StripOuterParagraphTags(msg.Completion)))
+                                                                </span>
+                                                            }
+
+                                                    </div>
+                                                </div>
+                                            }
+                                        </div>
+                                    }
+                                }
+                            }
+                        </div>
+                        <div class="bg-primary text-light px-4 py-2 rounded-top-5 text-dark d-flex flex-column justify-content-center">
+                            @if (currentSession is not null && currentSession?.SessionId != Models.Constants.EMPTY_SESSION)
+                            {
+                                <div class="input-group">
+                                    <input type="text" class="form-control" placeholder="Enter your message" disabled="@isResponding" @bind-value="userMessage" @bind-value:event="oninput" @onkeydown="HandleKeyDown" />
+                                    <button class="btn btn-primary" @onclick="SendMessage">Send</button>
+                                    <InputFile @ref="inputFile" class="btn btn-warning" OnChange="HandleFileSelected" disabled="@(isFileInputDisabled||isResponding)" />
+                                    <button class="btn btn-secondary" @onclick="Stop">Stop</button>
+                                </div>                    
+                            }
+                        </div>
+                    </div>
+                </div>
+        </div>
+   
+        <CustomModal IsVisible="isFileInputDisabled" Title="Document Processing" Message="Please wait, the document is uploading and processing. The amount of time this takes depends upon the size of the document." />
+
+    }
+}
+
+@code {
+  
+    //NavMenu component
+    private NavMenu? NavMenu = default;
+
+    #pragma warning disable SKEXP0010, SKEXP0001, SKEXP0020
+    //Config data from database
+    private Config config = new Config(){ Id=Guid.Empty};
+
+    //User messages and session properties
+    private string userMessage = string.Empty;
+    private List<Message>? messagesInChat;
+    private Session? currentSession;
+    private string sessionIdToDelete = string.Empty;
+
+    //Kernel and memory store
+    private IKernelBuilder? builder = null;
+    private Kernel? kernel = null;
+    private MemoryServerless? kernelMemory = null;
+    private IChatCompletionService? chatCompletionService = null;
+    private ChatHistory history = new ChatHistory();
+   
+    //Markdown processor
+    Markdown md = new Markdown();
+
+    //Flags for UI
+    bool showNeedsConfigure = false;
+    bool isFileInputDisabled=false;
+    bool isResponding = false;
+    bool stopResponding = false;
+    private bool loadingComplete = false;
+
+    //User properties
+    User currentUser = new User() { Id=string.Empty };
+
+    //Alert message properties
+    private string alertMessage { get; set; } = string.Empty;
+    private string alertType { get; set; } = string.Empty;
+
+    //File upload properties
+    private IBrowserFile? selectedFile = null;
+    private InputFile? inputFile;
+    const long maxFileSizeBytes = 1073741824; // 1GB
+
+    //Properties for image processing
+    byte[]? uploadImageByteArray = null;
+    string uploadImageType= string.Empty;
+
+    //Application settings from appsettings.json or AppSerivce configuration
+    AppSettings settings = new AppSettings();
+
+    private readonly string _summarizePrompt = @"
+        Summarize this text. One to three words maximum length.
+        Plain text only. No punctuation, markup or tags.";
+
+    // Initialization of the page
+    protected override async Task OnInitializedAsync()
+    {
+        NavMenu = new NavMenu();
+
+        try
+        {
+            //Get the current user
+            currentUser = await userService.GetCurrentUserAsync();
+
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Initialization error: {ex.Message}");
+        }
+
+        try
+        {
+            //Get the app settings from the appsettings.json file or App Service configuration
+            settings = appSettings.Value;
+
+            //Verify if the App Service needs configuration.
+            if (currentUser.Id=="Guest User" && settings.RequireEasyAuth)
+            {
+                showNeedsConfigure = true;
+                StateHasChanged();
+                return;
+            }
+
+            //Get app config data
+            var dbConfig = dbContext.Config.FirstOrDefault();
+            if (dbConfig != null)
+                config = dbConfig;       
+
+            // Create a kernel builder with Azure OpenAI chat completion. Both chat completion and embedding use the same OpenAI endpoint and key.
+            builder = Kernel.CreateBuilder()
+            .AddAzureOpenAIChatCompletion(settings.AzureOpenAIChatCompletion.Model, settings.AzureOpenAIChatCompletion.Endpoint, settings.AzureOpenAIChatCompletion.ApiKey)
+            .AddAzureOpenAITextEmbeddingGeneration(settings.AzureOpenAIEmbedding.Model, settings.AzureOpenAIChatCompletion.Endpoint, settings.AzureOpenAIChatCompletion.ApiKey);
+
+            // Add enterprise components
+            builder.Services.AddLogging(services => services.AddConsole().SetMinimumLevel(LogLevel.Trace));
+
+            // Build the kernel
+            kernel = builder.Build();
+
+            //Set file directory for storing knowledge if PostgreSQL or Azure AI Search is not used
+            var knnDirectory = "KNN";
+
+            //Setup the memory store
+            var kernelMemoryBuilder = new KernelMemoryBuilder()
+            .WithAzureOpenAITextEmbeddingGeneration(new AzureOpenAIConfig
+                {
+                    APIType = AzureOpenAIConfig.APITypes.EmbeddingGeneration,
+                    Endpoint = settings.AzureOpenAIChatCompletion.Endpoint,
+                    Deployment = settings.AzureOpenAIEmbedding.Model,
+                    Auth = AzureOpenAIConfig.AuthTypes.APIKey,
+                    APIKey = settings.AzureOpenAIChatCompletion.ApiKey,
+                })
+            .WithAzureOpenAITextGeneration(new AzureOpenAIConfig
+                {
+                    APIType = AzureOpenAIConfig.APITypes.ChatCompletion,
+                    Endpoint = settings.AzureOpenAIChatCompletion.Endpoint,
+                    Deployment = settings.AzureOpenAIChatCompletion.Model,
+                    Auth = AzureOpenAIConfig.AuthTypes.APIKey,
+                    APIKey = settings.AzureOpenAIChatCompletion.ApiKey,
+                });
+
+
+            //If Azure AI Search is configured, we use that for storage
+            if (settings.UsesAzureAISearch)
+            {
+                kernelMemoryBuilder = kernelMemoryBuilder.WithAzureAISearchMemoryDb(new AzureAISearchConfig()
+                {
+                    Endpoint = settings.AzureAISearch.Endpoint,
+                    APIKey = settings.AzureAISearch.ApiKey,
+                    Auth = AzureAISearchConfig.AuthTypes.APIKey,
+                    UseHybridSearch = false
+                });
+
+            }
+            else if (settings.UsesPostgreSQL)
+            {
+                //Use PostgreSQL DB memory store
+                //NOTE: You must have enabled pgvector extension in your PostgreSQL database for this to work.
+                kernelMemoryBuilder = kernelMemoryBuilder.WithPostgresMemoryDb(new PostgresConfig()
+                    {
+                        ConnectionString = settings.ConnectionStrings.PostgreSQL
+                    });
+            }
+            else
+            {
+                //Use file memory store
+                kernelMemoryBuilder = kernelMemoryBuilder.WithSimpleVectorDb(new Microsoft.KernelMemory.MemoryStorage.DevTools.SimpleVectorDbConfig { StorageType = Microsoft.KernelMemory.FileSystem.DevTools.FileSystemTypes.Disk, Directory = knnDirectory });
+            }
+
+            //Configure document intelligence if configured
+            if (!settings.AzureOpenAIChatCompletion.SupportsImages && settings.UsesAzureDocIntelligence)
+            {
+                kernelMemoryBuilder = kernelMemoryBuilder.WithAzureAIDocIntel(new AzureAIDocIntelConfig()
+                    {
+                        Endpoint = settings.DocumentIntelligence.Endpoint,
+                        APIKey = settings.DocumentIntelligence.ApiKey,
+                        Auth= AzureAIDocIntelConfig.AuthTypes.APIKey
+                    });
+            }
+
+            //Build the memory store
+            kernelMemory = kernelMemoryBuilder.Build<MemoryServerless>();
+
+            //Get reference to the chat completion service
+            chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
+
+            //Clear the chat history and set the system message
+            messagesInChat = new List<Message>();
+
+            //Get the current session chat messages
+            await ReloadChatMessagesAsync();
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Initialization error: {ex.Message}");
+            ShowAlert($"An error occurred while initializing the chat. {ex.Message}", AlertTypeEnum.danger);
+        }
+    }
+
+    //Flags that the user has requested the AI to stop responding
+    private void Stop()
+    {
+        if (isResponding)
+        {
+            stopResponding = true;
+        }
+    }
+
+
+    //Handles the user's message and sends it to the AI for processing
+    private async Task SendMessage()
+    {
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(userMessage) && chatCompletionService != null && currentSession!=null)
+            {
+
+                //The user previously requested to stop responding, so reset the flag so it can respond to the new message
+                stopResponding = false;
+
+                //Create a new message object and add it to the mesaagesInChat list. This will allow the UI to display the message while the AI processes it.
+                Message message = new Message(currentSession.Id, userMessage);
+                messagesInChat.Add(message);
+
+                //We do this to ensure that the user message is displayed in the chat window since looking up kernelMemory may take a moment. We
+                //want the UI to feel responsive.
+                string messageToProcess = userMessage;
+                userMessage = string.Empty;
+                StateHasChanged();
+                
+                //Need this delay to give the browser enough time to render the MessagesInChatdiv.
+                //If this doesn't exist then it is not able to scoll to the bottom.
+                await Task.Delay(100);
+                await js.InvokeVoidAsync("scrollToBottom", "MessagesInChatdiv");
+
+                //Look up possible knowledge from the memory store
+                var answer = await kernelMemory!.AskAsync(messageToProcess, currentSession.Id);
+                if (!answer.NoResult)
+                {
+                    history.AddUserMessage("Here is some supporting information:");
+                    history.AddUserMessage(answer.Result);
+                    history.AddUserMessage("----------------------------------");
+                }
+
+                //Add the user message to the chat history
+                history.AddUserMessage(messageToProcess);
+
+                //Start the AI text generation process
+                await StreamChatCompletionAsync(history,message, chatCompletionService);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"SendMessage error: {ex.Message}");
+            ShowAlert($"An error occurred while sending the message. {ex.Message}", AlertTypeEnum.danger);
+        }
+    }
+
+    //Generates text from the AI and streams it to the chat window
+    public async Task StreamChatCompletionAsync(ChatHistory history,Message message, IChatCompletionService chatCompletionService)
+    {
+        try
+        {
+            var markdownBuilder = new StringBuilder();
+            var finalResults = new StringBuilder();
+            isResponding = true;
+            StateHasChanged();
+
+            await foreach (var chatUpdate in chatCompletionService.GetStreamingChatMessageContentsAsync(history))
+            {
+                //If the user has requested to stop responding, then break out of the loop
+                if (stopResponding)
+                {
+                    break;
+                }
+
+                //If the chat update has content, then append it to the results
+                if (chatUpdate?.Content != null)
+                {
+                    finalResults.Append(chatUpdate.Content);
+                    markdownBuilder.Append(chatUpdate.Content);
+                    string partialHTML = md.Transform(markdownBuilder.ToString());
+
+                    message.Completion = FixupTextForCode(partialHTML.ToString());
+                    // Scroll to the bottom of the chat window
+                    await js.InvokeVoidAsync("scrollToBottom", "MessagesInChatdiv");
+                    StateHasChanged();
+                }
+            }
+            message.Completion = md.Transform(FixupTextForCode(finalResults.ToString()));
+            history.AddAssistantMessage(finalResults.ToString());
+
+            //store the chat session history
+            await UpdateSessionAndMessage(currentSession?.Id??string.Empty, message);
+
+            //Update the chat session name if it is the default new chat name
+            if (currentSession!=null && currentSession.Name==Models.Constants.NEW_CHAT)
+            {
+                currentSession.Name = await SummarizeChatSessionNameAsync(currentSession?.SessionId);
+                NavMenu.UpdateNavMenuDisplay("summarized text", currentSession);
+            }
+
+            // Scroll to the bottom of the chat window
+            await js.InvokeVoidAsync("scrollToBottom", "MessagesInChatdiv");
+            isResponding = false;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            isResponding = false;
+            StateHasChanged();
+            Console.WriteLine($"StreamChatCompletionAsync error: {ex.Message}");
+        }
+    }
+
+    //If the user presses the enter key, send their message
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await SendMessage();
+        }
+    }
+
+    //Handles the file selected event for the InputFile component
+    private async Task HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        selectedFile = e.File;
+
+        if (!string.IsNullOrEmpty(selectedFile.Name) && selectedFile.Size > 0)
+        {
+            await UploadFile();
+
+            selectedFile= null;
+        }
+        else
+        {
+            ShowAlert("The file you selected is empty or has no name.", AlertTypeEnum.warning);
+        }
+
+        if (selectedFile!=null && selectedFile.Size>maxFileSizeBytes)
+        {
+            ShowAlert("The file you selected is too large. Please select a file that is less than 1GB.", AlertTypeEnum.warning);
+        }
+    }
+
+    // Uploads the file to the server and processes it. The file is never stored in the original format on the server.
+    private async Task UploadFile()
+    {
+        try
+        {
+            if (selectedFile == null)
+            {
+                ShowAlert("You need to select a file to upload.", AlertTypeEnum.warning);
+                return;
+            }
+
+            // Only upload PDFs, DOCX, and TXT files
+            var fileName = selectedFile.Name.ToLower();
+            if (!(fileName.EndsWith(".pdf") || fileName.EndsWith(".docx") || fileName.EndsWith(".xlsx") || fileName.EndsWith(".pptx") || fileName.EndsWith(".txt") ||
+                  (settings.AzureOpenAIChatCompletion.SupportsImages && (fileName.EndsWith(".jpg") || fileName.EndsWith(".jpeg") || fileName.EndsWith(".png") || fileName.EndsWith(".gif")))))
+            {
+                string alertMessage = (settings.AzureOpenAIChatCompletion.SupportsImages || settings.UsesAzureDocIntelligence)
+                    ? "Please upload a PDF, DOCX, XLSX, PPTX, TXT, or image file."
+                    : "Please upload a PDF, DOCX, XLSX, PPTX, or TXT file. Image uploads are not supported.";
+                ShowAlert($"The file {selectedFile.Name} is not a supported file type. {alertMessage}", AlertTypeEnum.warning);
+                return;
+            }
+
+            // Disable the file input while processing the file
+            isFileInputDisabled = true;
+            StateHasChanged();
+
+            // Read the file into a memory stream
+            using var stream = selectedFile.OpenReadStream(maxAllowedSize: 1073741824); // 1GB
+            using var memoryStream = new MemoryStream();
+            await stream.CopyToAsync(memoryStream);
+
+            //Check to see how we need to process the files.
+            if (settings.AzureOpenAIChatCompletion.SupportsImages && (fileName.EndsWith(".jpg") || fileName.EndsWith(".jpeg") || fileName.EndsWith(".png") || fileName.EndsWith(".gif")))
+            {
+                ProcessImage(memoryStream, fileName);
+            }
+            else
+            {
+                await ProcessWithKernelMemory(memoryStream, fileName);
+            }
+
+            // Clear the file input so it no longer shows the uploaded filename
+            // Set the file input to enabled so the user can upload another file
+            if (inputFile != null)
+            {
+                await js.InvokeVoidAsync("clearElementValue", inputFile.Element);
+            }
+            isFileInputDisabled = false;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            ShowAlert($"An error occurred while uploading the file. {ex.Message}", AlertTypeEnum.danger);
+            isFileInputDisabled = false;
+            Console.WriteLine($"UploadFile error: {ex.Message}");
+        }
+    }
+
+    //Handles the processing of image files that have been uploaded by the user.
+    private async void ProcessImage(MemoryStream memoryStream, string filename)
+    {
+        try
+        {
+            if (currentSession is null)
+            {
+                ShowAlert("You need to start a chat session before uploading an image.", AlertTypeEnum.warning);
+                return;
+            };
+
+            //Gets the image MIME type by reading the first few bytes of the image
+            uploadImageType = ImageUtils.GetMimeTypeFromImage(memoryStream);
+
+            if (string.IsNullOrEmpty(uploadImageType))
+            {
+                ShowAlert("The image you uploaded is not a supported image type.", AlertTypeEnum.warning);
+                return;
+            }
+
+            //Convert the image to Base64 data and add it to the messagesInChat list so it can be displayed in the chat window
+            uploadImageByteArray = memoryStream.ToArray();
+            string base64Image = ConvertByteImageToBase64Data(uploadImageByteArray, uploadImageType);
+            Message message = new Message(currentSession.Id, $"{base64Image}", "What would you like to know about that image?");
+            if (messagesInChat!=null && currentSession!=null)
+                messagesInChat.Add(message);
+
+            //Add the image to the chat history so the AI can process it
+            var sendMessage = new ChatMessageContentItemCollection
+            {
+                new ImageContent(){Data=uploadImageByteArray, MimeType = uploadImageType }
+            };
+            history.AddUserMessage(sendMessage);
+
+            //store the chat session history
+            await UpdateSessionAndMessage(currentSession?.Id ?? string.Empty, message);
+            StateHasChanged();
+            await js.InvokeVoidAsync("scrollToBottom", "MessagesInChatdiv");
+            return;
+
+        }
+        catch (Exception ex)
+        {
+            ShowAlert($"An error occurred while processing the image. {ex.Message}", AlertTypeEnum.danger);
+            Console.WriteLine($"ProcessImage error: {ex.Message}");
+            return;
+        }
+    }
+
+    //Processes the uploaded file with Kernel Memory and stores the embeddings in the configured storage system.
+    private async Task ProcessWithKernelMemory(MemoryStream memoryStream, string filename)
+    {
+        if (kernelMemory != null)
+        {
+            var docId = Guid.NewGuid().ToString();
+            string index = currentSession.SessionId;
+            TagCollection tags = new TagCollection();
+            tags.Add("user", currentUser.Id);
+            memoryStream.Position = 0;
+            await kernelMemory.ImportDocumentAsync(memoryStream, filename,docId, tags, index);
+
+            while(!await kernelMemory.IsDocumentReadyAsync(docId,index))
+            {
+                Thread.Sleep(1000);
+            }
+
+        }
+    }
+
+    //Shows an alert at the top of the page
+    private void ShowAlert(string message, AlertTypeEnum alertType= AlertTypeEnum.info)
+    {
+
+        alertMessage += message + " ";
+        this.alertType = "alert-" + (Enum.GetName(typeof(AlertTypeEnum), alertType)?.ToLower() ?? "warning");
+        StateHasChanged();
+    }
+
+    //Closes the alert message
+    private void CloseAlert()
+    {
+        alertMessage = string.Empty;
+        alertType=string.Empty;
+        StateHasChanged();
+    }
+
+    // Method to Convert Byte Image to Base64 Data
+    private string ConvertByteImageToBase64Data(byte[] byteImage, string mimeType)
+    {
+        return $"data:{mimeType};base64," + Convert.ToBase64String(byteImage);
+    }
+
+
+    // Method to handle user access requests
+    private void RequestAccess()
+    {
+
+        //check to see if the user already has a request for access
+        //if they do, then show a message that they already have a request
+        //if they don't, then add a request to the database
+        var userDetails = dbContext.Users.FirstOrDefault(u => u.Id==currentUser.Id);
+        if (userDetails!=null)
+        {
+            ShowAlert("You have already requested access to this page.", AlertTypeEnum.warning);
+            return;
+        }
+        else
+        {
+
+            //if there are no admins already, then add the user as an admin and auto approve
+            if (!dbContext.Users.Any(u => u.Role == UserRoles.Admin))
+            {
+                dbContext.Users.Add(new User() { Id = currentUser.Id, Name = currentUser.Name, Role = UserRoles.Admin, DateRequested = DateTime.Now, DateApproved=DateTime.Now, ApprovedBy=string.Empty, Email=string.Empty });
+                dbContext.SaveChanges();
+                currentUser.Role = UserRoles.Admin;
+                ShowAlert("Your request for access has been approved and you are the first administrator.", AlertTypeEnum.success);
+            }
+            else
+            {
+                // The system already has an admin, so any requested user will be added as a user or guest depending on the
+                // AutomaticAccountApproval setting.
+                if (config.AutomaticAccountApproval)
+                {
+                    dbContext.Users.Add(new User() { Id = currentUser.Id, Name = currentUser.Name, Role = UserRoles.User, DateRequested = DateTime.Now, DateApproved=DateTime.Now, ApprovedBy=string.Empty, Email=string.Empty  });
+                    dbContext.SaveChanges();
+                    ShowAlert("Your request for access has been submitted. You will have access once an admin approves the request.", AlertTypeEnum.success);
+                }
+                else
+                {
+                    dbContext.Users.Add(new User() { Id = currentUser.Id, Name = currentUser.Name, Role = UserRoles.Guest, DateRequested = DateTime.Now });
+                    dbContext.SaveChanges();
+                    ShowAlert("Your request for access has been submitted. You will have access once an admin approves the request.", AlertTypeEnum.success);
+                }
+            }
+        }
+    }
+
+    // Fixes up the text for code blocks. This ensures that if the AI generates a code block it looks correct in the UI.
+    private string FixupTextForCode(string text)
+    {
+        Regex rgx = new Regex("```");
+        var matches = rgx.Matches(text);
+        if (matches.Count() > 0)
+            for (int i = 0; i < matches.Count; i++)
+                if (i % 2 == 0)
+                    // even = start code block tag
+                    text = rgx.Replace(text, "<pre><code>", 1, i);
+                else
+                    // odd = end code block tag
+                    text = rgx.Replace(text, "</pre></code>", 1, i);
+
+        return text;
+    }
+
+    // Event handler for the NavMenu component for when a chat session is changed.
+    public async void LoadChatEventHandlerAsync(Session session)
+    {
+        loadingComplete = false;
+        currentSession = session;
+        StateHasChanged();
+        await ReloadChatMessagesAsync();
+    }
+
+    // Reloads the chat messages for the current session
+    public async Task ReloadChatMessagesAsync()
+    {
+        if (currentSession is not null)
+        {
+            messagesInChat = await chatHistoryService.GetSessionMessagesAsync(currentSession.SessionId);
+        }
+
+        //setup chat history object
+        history = new ChatHistory();
+        history.AddSystemMessage(settings.SystemMessage);
+        if (messagesInChat != null && messagesInChat.Count > 0)
+        {
+            foreach (var msg in messagesInChat)
+            {
+                if (msg.Prompt.StartsWith("data:image"))
+                {
+                    string mimeType = ExtractMimeType(msg.Prompt);
+                    history.AddUserMessage(new ChatMessageContentItemCollection() { new ImageContent() { Data = Convert.FromBase64String(msg.Prompt.Substring(mimeType.Length + 13)), MimeType=mimeType } });
+                }
+                else
+                {
+                    history.AddUserMessage(msg.Prompt);
+                }
+                history.AddAssistantMessage(msg.Completion);             
+            }
+        }
+
+
+        loadingComplete = true;
+
+        StateHasChanged();
+    }
+
+    // Updates the session and message data in the chat history.
+    private async Task UpdateSessionAndMessage(string sessionId, Message chatMessage)
+    {
+
+        //Update the tokens used in the session
+        Session session = await chatHistoryService.GetSessionAsync(sessionId);
+
+        //Insert new message and Update session in a transaction
+        await chatHistoryService.UpsertSessionBatchAsync(session, chatMessage);
+
+    }
+
+    // Summarizes the chat session name based on the conversation. This is used to provide a more meaningful name to the chat session.
+    public async Task<string> SummarizeChatSessionNameAsync(string? sessionId)
+    {
+        ArgumentNullException.ThrowIfNull(sessionId);
+
+        //Get the messages for the session
+        List<Message> messages = await chatHistoryService.GetSessionMessagesAsync(sessionId);
+
+        //Create a conversation string from the messages
+        string conversationText = string.Join(" ", messages.Select(m => m.Prompt + " " + m.Completion));
+
+        //Send to Semantic Kernel to summarize the conversation
+        string completionText = "New Chat";
+        var skChatHistory = new ChatHistory();
+        skChatHistory.AddSystemMessage(_summarizePrompt);
+        skChatHistory.AddUserMessage(conversationText);
+
+        PromptExecutionSettings settings = new()
+            {
+                ExtensionData = new Dictionary<string, object>()
+            {
+                { "Temperature", 0.0 },
+                { "TopP", 1.0 },
+                { "MaxTokens", 100 }
+            }
+            };
+
+        var result = await kernel.GetRequiredService<IChatCompletionService>().GetChatMessageContentAsync(skChatHistory, settings);
+        completionText = result.Items[0].ToString()!;
+
+        Session session = await chatHistoryService.GetSessionAsync(sessionId);
+        session.Name = completionText;
+        await chatHistoryService.UpdateSessionAsync(session);
+        return completionText;
+    }
+
+    // Strips the outer paragraph tags from the html. This is used to ensure that the AI generated text is displayed correctly in the UI.
+    public static string StripOuterParagraphTags(string input)
+    {
+        if (string.IsNullOrEmpty(input))
+        {
+            return input;
+        }
+
+        // Use a regular expression to remove the outer <p> and </p> tags, case-insensitive
+        string pattern = @"^\s*<p>(.*?)<\/p>?\s*$";
+        return Regex.Replace(input, pattern, "$1", RegexOptions.IgnoreCase | RegexOptions.Singleline);
+    }
+
+
+    // Extracts the MIME type from a data URL
+    private string ExtractMimeType(string dataUrl)
+    {
+        if (string.IsNullOrEmpty(dataUrl))
+        {
+            throw new ArgumentException("The data URL cannot be null or empty.", nameof(dataUrl));
+        }
+
+        int startIndex = dataUrl.IndexOf(':') + 1;
+        int endIndex = dataUrl.IndexOf(';');
+
+        if (startIndex == 0 || endIndex == -1)
+        {
+            throw new FormatException("The data URL format is invalid.");
+        }
+
+        return dataUrl.Substring(startIndex, endIndex - startIndex);
+    }
+
+    // Deletes the uploaded documents from the memory store
+    private async Task DeleteUploadedDocs(string sessionIdToDelete)
+    {
+        if (!string.IsNullOrEmpty(sessionIdToDelete))
+        {
+
+            if (kernelMemory != null)
+                await kernelMemory.DeleteIndexAsync(sessionIdToDelete);
+
+            sessionIdToDelete = string.Empty;
+        }
+    }
+
+    // Navigates to the user profile page
+    private void GoToProfile()
+    {
+        if (currentUser.Role!=UserRoles.Guest)
+            NavigationManager.NavigateTo("/userprofile");
+    }
+}

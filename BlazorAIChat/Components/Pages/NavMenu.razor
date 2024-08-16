@@ -1,0 +1,316 @@
+﻿@using BlazorAIChat.Models
+@using BlazorAIChat.Services
+@using BlazorAIChat.Components
+@inject ChatHistoryService chatHistoryService
+@inject NavigationManager NavigationManager
+
+<div class="h-100 d-flex flex-column" style="min-width: 275px;">
+
+    <div class="navbar navbar-dark bg-primary">
+        <div class="w-100 d-flex align-items-center justify-content-center ">
+            <span class="navbar-brand mb-0 h1">@User?.Name</span>
+            @if (User!=null && User.Role == UserRoles.Admin)
+            {
+                <button class="btn btn-sm btn-link text-light" @onclick="@(()=>NavigationManager.NavigateTo("/admin"))">Admin</button>
+            }
+        </div>
+    </div>
+
+    <div class="flex-grow-1 flex-column justify-content-center overflow-y-auto overflow-x-hidden">
+        @if (_loadingComplete == true)
+        {
+            <div>
+                <nav class="flex-column">
+                    <div class="nav-item py-2 d-grid">
+                        <NavLink style="cursor:pointer" class="btn btn-sm mx-1 btn-secondary d-flex flex-row align-items start" Match="NavLinkMatch.All" @onclick="@(e => NewChat())">
+                            <span class="flex-fill">
+                                Create New Chat
+                            </span>
+                        </NavLink>
+                    </div>
+                    <div class="row row-cols-1 g-2 px-2 d-flex flex-column align-items-start">
+                        @foreach (var session in _chatSessions)
+                        {
+                            <div class="col">
+                                <div class="card @(IsActiveSession(session.SessionId) ? "bg-primary text-light" : "bg-primary opacity-50 text-light")">
+                                    <div class="card-body user-select-none" role="button" @onclick="@(e => LoadChat(session.SessionId))">
+                                        <a class="card-title text-decoration-none h6">
+                                            @if (IsActiveSession(session.SessionId))
+                                            {
+                                                <i class="bi bi-chat-right-dots-fill me-2"></i>
+                                            }
+                                            <span title="@session.Name" class="ms-1">
+                                                @{
+                                                    string substring = SafeSubstring(session.Name, 20);
+                                                    MarkupString html = new MarkupString(substring);
+                                                }
+                                                @html
+                                            </span>
+                                        </a>
+                                    </div>
+                                    <div class="card-footer d-flex align-items-center justify-content-between">
+                                        <span class="badge bg-light me-2 user-select-none">
+                                            
+                                        </span>
+                                        <div class="btn-group" role="group">
+                                            <button type="button" class="btn btn-sm btn-link text-light" @onclick="@(e => OpenInput(session.SessionId,session.Name))">
+                                                <i class="bi bi-pencil-fill me-1"></i>
+                                            </button>
+                                            <button type="button" class="btn btn-sm btn-link text-light" @onclick="@(e => OpenConfirmation(session.SessionId,session.Name))">
+                                                <i class="bi bi-trash-fill ms-1"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </nav>
+            </div>
+        }
+    </div>
+</div>
+
+@if (_deletePopUpOpen)
+{
+    <Confirmation Caption="Delete a Chat"
+        Message="@_popUpText"
+        OnClose="@OnConfirmationClose"
+        Type="Confirmation.Category.DeleteNot">
+    </Confirmation>
+}
+
+
+@if (_renamePopUpOpen)
+{
+    <Input Caption="Rename a Chat" Value="@_popUpText" OnClose="@OnInputClose" />
+}
+
+@code {
+    [Parameter]
+    public User? User { get; set; } = null;
+
+    [Parameter]
+    public EventCallback<Session> OnChatClicked { get; set; }
+
+    [Parameter]
+    public EventCallback OnNavBarVisibilityUpdated { get; set; }
+
+    [Parameter]
+    public EventCallback<string> OnDeleteUploadedDocs { get; set; }
+
+    private List<Session> _chatSessions { get; set; } = new();
+    private string? _sessionId;
+    private string? _popUpText;
+    private bool _deletePopUpOpen = false;
+    private bool _loadingComplete = false;
+    private bool _renamePopUpOpen = false;
+
+    private Session? currentSession;
+
+
+    // This method is called when the component is ready to start, having received its initial parameters.
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_loadingComplete == true)
+            return;
+
+        await SetMostRecentSession();
+
+        _loadingComplete = true;
+        await LoadCurrentChatAsync();
+
+    }
+
+    // Retrieve the most recent chat session if one exists for the user.
+    private async Task SetMostRecentSession()
+    {
+        _chatSessions = await chatHistoryService.GetSessionsAsync(User?.Id ?? Models.Constants.NEW_CHAT);
+
+        if (_chatSessions.Count > 0)
+            currentSession = _chatSessions.OrderByDescending(x => x.SessionCreatedAt).FirstOrDefault();
+        else
+            currentSession = null;
+    }
+
+    // Load the current chat session.
+    private async Task<int> LoadCurrentChatAsync()
+    {
+        int index = 0;
+        if (currentSession is not null & _chatSessions is not null & _chatSessions?.Count > 0)
+        {
+            index = _chatSessions?.FindIndex(s => s.SessionId == currentSession?.SessionId) ?? 0;
+        }
+        if (currentSession is null || index < 0)
+        {
+            currentSession = new Session();
+            currentSession.SessionId = Constants.EMPTY_SESSION;
+            currentSession.Name = Constants.NEW_CHAT;
+
+            if (_chatSessions is not null & _chatSessions?.Count > 0)
+            {
+                var match = _chatSessions?.FirstOrDefault();
+                if (match is not null)
+                {
+                    currentSession.Id = match.SessionId;
+                    currentSession.SessionId = match.SessionId;
+                    currentSession.Name = match.Name;
+                }
+            }
+        }
+
+        await OnChatClicked.InvokeAsync(currentSession);
+
+        return 0;
+    }
+
+    // Create a new chat session.
+    private async Task NewChat()
+    {
+        Session session = new();
+        session.UserId = User?.Id??string.Empty;
+        await chatHistoryService.InsertSessionAsync(session);
+        _chatSessions.Add(session);
+
+        currentSession = session;
+
+        UpdateNavMenuDisplay("Add");
+        await LoadChat(session.SessionId);
+        StateHasChanged();
+    }
+
+    // Update the navigation menu display. Used when the session name is updated
+    public void UpdateNavMenuDisplay(string reason = "", Session? _session = null)
+    {
+        if (_session is not null)
+        {
+            int index = _chatSessions.FindIndex(s => s.SessionId == _session.SessionId);
+            _chatSessions[index].Name = _session.Name;
+        }
+
+    }
+
+    // Load the chat session based on the session id.
+    async private Task<int> LoadChat(string _sessionId)
+    {
+        if (_chatSessions is null) return 0;
+
+        //get the session from _chatSessions
+        currentSession = _chatSessions.Find(s => s.SessionId == _sessionId);
+
+        await LoadCurrentChatAsync();
+
+        return 0;
+    }
+
+    // Open the confirmation dialog to delete a chat session.
+    private void OpenConfirmation(string id, string title)
+    {
+        _deletePopUpOpen = true;
+        _sessionId = id;
+        _popUpText = $"Do you want to delete the chat \"{title}\"?";
+    }
+
+    // Close the confirmation dialog to delete a chat session.
+    // If the user agreed to delete the session, all uploaded documents are deleted
+    // and the chat session is deleted.
+    private async Task OnConfirmationClose(bool isOk)
+    {
+
+        if (isOk)
+        {
+            _deletePopUpOpen = false;
+
+            if (_sessionId !=null)
+                DeleteUploadedDocs(_sessionId);
+
+            if (_sessionId!=null)
+                await chatHistoryService.DeleteSessionAndMessagesAsync(_sessionId);
+
+            int index = _chatSessions.FindIndex(s => s.SessionId == _sessionId);
+            _chatSessions.RemoveAt(index);
+
+            _deletePopUpOpen = false;
+
+            UpdateNavMenuDisplay("Delete");
+
+            await SetMostRecentSession();
+            await LoadCurrentChatAsync();
+        }
+
+        _deletePopUpOpen = false;
+    }
+
+    // Open the input dialog to rename a chat session.
+    // Completes the rename process.
+    private void OpenInput(string id, string title)
+    {
+        _renamePopUpOpen = true;
+        _sessionId = id;
+        _popUpText = title;
+    }
+
+    // Close the input dialog to rename a chat session.
+    private async Task OnInputClose(string newName)
+    {
+        if (newName != "")
+        {
+            bool updateCurrentChat = false;
+
+            if (_sessionId is null || currentSession is null)
+                return;
+
+            if (_sessionId == currentSession?.SessionId)
+            {
+                updateCurrentChat = true;
+            }
+
+            Session session = await chatHistoryService.GetSessionAsync(_sessionId);
+            session.Name = newName;
+            await chatHistoryService.UpdateSessionAsync(session);
+
+
+            int index = _chatSessions.FindIndex(s => s.SessionId == _sessionId);
+            _chatSessions[index].Name = newName;
+
+            _renamePopUpOpen = false;
+
+            UpdateNavMenuDisplay("Rename");
+
+            if (!updateCurrentChat)
+            {
+                return;
+            }
+
+            if (currentSession is not null)
+            {
+                currentSession.Name = newName;
+            }
+            await LoadCurrentChatAsync();
+        }
+
+        _renamePopUpOpen = false;
+    }
+
+    // Check if the session is active.
+    private bool IsActiveSession(string _sessionId) => currentSession switch
+    {
+        null => true,
+        (Session s) when s.SessionId == _sessionId => true,
+        _ => false
+    };
+
+    // Creates a substring of the text that is under the maximum length.
+    public string SafeSubstring(string text, int maxLength) => text switch
+    {
+        null => string.Empty,
+        _ => text.Length > maxLength ? text.Substring(0, maxLength) + "..." : text
+    };
+
+    // Invokes the delete uploaded documents event.
+    // This is captured by the chat component to delete all uploaded documents.
+    private void DeleteUploadedDocs(string sessionId)
+    {
+        OnDeleteUploadedDocs.InvokeAsync(sessionId);
+    }
+}

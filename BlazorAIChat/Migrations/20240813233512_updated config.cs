@@ -5,7 +5,7 @@
 namespace BlazorAIChat.Migrations
 {
     /// <inheritdoc />
-    public partial class updatedconfig : Migration
+    public partial class UpdatedConfig : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
