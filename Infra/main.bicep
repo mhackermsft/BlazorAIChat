@@ -137,7 +137,7 @@ resource openAiService 'Microsoft.CognitiveServices/accounts@2021-04-30' = {
 // Deploy the chat model
 resource openAiChat 'Microsoft.CognitiveServices/accounts/deployments@2023-05-01' = {
   parent: openAiService
-  name: toLower('${aiChatModelName}-${uniqueName}')
+  name: toLower('${aiChatModelName}')
   properties: {
     model: {
       format: 'OpenAI'
@@ -157,7 +157,7 @@ resource openAiChat 'Microsoft.CognitiveServices/accounts/deployments@2023-05-01
 // Deploy the embed model
 resource openAiEmbed 'Microsoft.CognitiveServices/accounts/deployments@2023-05-01' = {
   parent: openAiService
-  name: toLower('${aiEmbedModelName}-${uniqueName}')
+  name: toLower('${aiEmbedModelName}')
   properties: {
     model: {
       format: 'OpenAI'
