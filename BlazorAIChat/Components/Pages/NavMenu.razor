@@ -8,7 +8,15 @@
 
     <div class="navbar navbar-dark bg-primary">
         <div class="w-100 d-flex align-items-center justify-content-center ">
-            <span class="navbar-brand mb-0 h1">@User?.Name</span>
+            @if(User.Role!= UserRoles.Guest)
+            {
+                <a href="/userprofile" class="navbar-brand mb-0 h1 text-decoration-none text-light" style="cursor: pointer;">@User?.Name</a>
+            }
+            else
+            {
+                <span class="navbar-brand mb-0 h1">@User?.Name</span>
+            }
+
             @if (User!=null && User.Role == UserRoles.Admin)
             {
                 <button class="btn btn-sm btn-link text-light" @onclick="@(()=>NavigationManager.NavigateTo("/admin"))">Admin</button>
