@@ -654,7 +654,10 @@ else
         }
         catch (Exception ex)
         {
-            ShowAlert($"An error occurred while uploading the file. {ex.Message}", AlertTypeEnum.danger);
+            if (ex.Message.ToLower().Contains("corrupt"))
+                ShowAlert($"An error occurred while uploading the file. The document may be corrupt or it may be protected with encryption.", AlertTypeEnum.danger);
+            else
+                ShowAlert($"An error occurred while uploading the file. {ex.Message}.", AlertTypeEnum.danger);
             isFileInputDisabled = false;
             Console.WriteLine($"UploadFile error: {ex.Message}");
         }
