@@ -1,4 +1,6 @@
-﻿namespace BlazorAIChat.Models
+﻿using Microsoft.KernelMemory;
+
+namespace BlazorAIChat.Models
 {
     public record Message
     {
@@ -20,6 +22,8 @@
 
         public string Completion { get; set; }
 
+        public List<string> Citations { get; set; }
+
         public Message(string sessionId, string prompt, string completion = "")
         {
             Id = Guid.NewGuid().ToString();
@@ -28,6 +32,7 @@
             TimeStamp = DateTime.UtcNow;
             Prompt = prompt;
             Completion = completion;
+            Citations = new List<string>();
         }
     }
 }

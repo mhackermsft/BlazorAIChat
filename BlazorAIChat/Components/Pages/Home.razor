@@ -221,23 +221,43 @@ else
                                                     <div class="toast-body">
                                                         <i class="bi bi-grip-vertical mr-2 text-black-50"></i>
                                                     
-                                                            @if(string.IsNullOrEmpty(msg.Completion.Trim()))
-                                                            {
-                                                                <div class="chat-bubble">
-                                                                    <div class="typing">
-                                                                        <div class="dot"></div>
-                                                                        <div class="dot"></div>
-                                                                        <div class="dot"></div>
-                                                                    </div>
+                                                        @if(string.IsNullOrEmpty(msg.Completion.Trim()))
+                                                        {
+                                                            <div class="chat-bubble">
+                                                                <div class="typing">
+                                                                    <div class="dot"></div>
+                                                                    <div class="dot"></div>
+                                                                    <div class="dot"></div>
                                                                 </div>
-                                                            }
-                                                            else
-                                                            {
-                                                                <span class="display: inline">
-                                                                    @(new MarkupString(StripOuterParagraphTags(msg.Completion)))
-                                                                </span>
-                                                            }
+                                                            </div>
+                                                        }
+                                                        else
+                                                        {
+                                                            <span class="display: inline">
+                                                                @(new MarkupString(StripOuterParagraphTags(msg.Completion)))
+                                                            </span>
 
+                                                            @if (msg.Citations.Count>0)
+                                                            {
+                                                                <br/>
+                                                       
+                                                                @if (msg.Citations.Count>1)
+                                                                {
+                                                                    <div class="badge bg-primary">Sources:</div>
+                                                                }
+                                                                else
+                                                                {
+                                                                    <div class="badge bg-primary">Source:</div>
+                                                                }
+                                                                     
+                                                                <ul>
+                                                                @foreach (var citation in msg.Citations)
+                                                                {
+                                                                    <li>@citation</li>
+                                                                }
+                                                                </ul>                                                             
+                                                            }
+                                                        }
                                                     </div>
                                                 </div>
                                             }
@@ -478,7 +498,7 @@ else
 
                 //Create a new message object and add it to the mesaagesInChat list. This will allow the UI to display the message while the AI processes it.
                 Message message = new Message(currentSession.Id, userMessage);
-                messagesInChat.Add(message);
+
 
                 //We do this to ensure that the user message is displayed in the chat window since looking up kernelMemory may take a moment. We
                 //want the UI to feel responsive.
@@ -498,10 +518,16 @@ else
                     history.AddUserMessage("Here is some supporting information:");
                     history.AddUserMessage(answer.Result);
                     history.AddUserMessage("----------------------------------");
+
+                    if (answer.RelevantSources.Count>0)
+                        foreach (var source in answer.RelevantSources)
+                            message.Citations.Add($"{source.SourceName} ({(source.Partitions.Max(x=>x.Relevance)*100).ToString("F2")}%)");        
                 }
 
                 //Add the user message to the chat history
                 history.AddUserMessage(messageToProcess);
+
+                messagesInChat.Add(message);
 
                 //Start the AI text generation process
                 await StreamChatCompletionAsync(history,message, chatCompletionService);
