@@ -175,8 +175,8 @@ To address this issue, please ensure that your Azure OpenAI models are configure
 
 For more information on managing your Azure OpenAI service quotas, please visit this link: https://learn.microsoft.com/en-us/azure/ai-services/openai/how-to/quota?tabs=rest
 
-## Known Issues
-Not all Word, Excel or PowerPoint files are compatible with the OpenXML document reader utilized by the Kernel Memory service. This may cause some documents that you attempt to upload fail with a corrupt data error. I am looking into options that may help eliminate this issue.
+## Known Limitation
+Word, Excel or PowerPoint documents that have data classification or DRM enabled cannot be uploaded. You will receive a file corruption error. Only upload documents that are not protected.
 
 ## Disclaimer
 This code is for demonstration purposes only. It has not been evaluated or reviewed for production purposes. Please utilize caution and do your own due diligence before using this code. I am not responsible for any issues you experience or damages caused by the use or misuse of this code.
