@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.29.47.4906",
-      "templateHash": "13928419583247675130"
+      "templateHash": "8329698866237484407"
     }
   },
   "parameters": {
@@ -115,12 +115,20 @@
               "value": "[toLower(format('{0}-{1}', parameters('aiChatModelName'), parameters('uniqueName')))]"
             },
             {
+              "name": "AzureOpenAIChatCompletion__MaxInputTokens",
+              "value": "128000"
+            },
+            {
               "name": "AzureOpenAIChatCompletion__SupportsImages",
               "value": "[if(parameters('aiChatModelSupportsImages'), 'true', 'false')]"
             },
             {
               "name": "AzureOpenAIEmbedding__Model",
               "value": "[toLower(format('{0}-{1}', parameters('aiEmbedModelName'), parameters('uniqueName')))]"
+            },
+            {
+              "name": "AzureOpenAIEmbedding__MaxInputTokens",
+              "value": "8192"
             },
             {
               "name": "SystemMessage",

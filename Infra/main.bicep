@@ -55,12 +55,20 @@ resource appService 'Microsoft.Web/sites@2020-06-01' = {
           value: toLower('${aiChatModelName}-${uniqueName}')
         }
         {
+          name: 'AzureOpenAIChatCompletion__MaxInputTokens'
+          value: '128000'
+        }
+        {
           name: 'AzureOpenAIChatCompletion__SupportsImages'
           value: aiChatModelSupportsImages ? 'true' : 'false'
         }
         {
           name: 'AzureOpenAIEmbedding__Model'
           value: toLower('${aiEmbedModelName}-${uniqueName}')
+        }
+        {
+          name: 'AzureOpenAIEmbedding__MaxInputTokens'
+          value: '8192'
         }
         {
           name:'SystemMessage'

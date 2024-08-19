@@ -404,7 +404,8 @@ else
                     Endpoint = settings.AzureOpenAIChatCompletion.Endpoint,
                     Deployment = settings.AzureOpenAIEmbedding.Model,
                     Auth = AzureOpenAIConfig.AuthTypes.APIKey,
-                    APIKey = settings.AzureOpenAIChatCompletion.ApiKey
+                    APIKey = settings.AzureOpenAIChatCompletion.ApiKey,
+                    MaxTokenTotal = settings.AzureOpenAIEmbedding.MaxInputTokens
                 },httpClient: httpClient)
             .WithAzureOpenAITextGeneration(new AzureOpenAIConfig
                 {
@@ -413,6 +414,7 @@ else
                     Deployment = settings.AzureOpenAIChatCompletion.Model,
                     Auth = AzureOpenAIConfig.AuthTypes.APIKey,
                     APIKey = settings.AzureOpenAIChatCompletion.ApiKey,
+                    MaxTokenTotal = settings.AzureOpenAIChatCompletion.MaxInputTokens
                 }, httpClient: httpClient);
 
 
