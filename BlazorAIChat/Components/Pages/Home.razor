@@ -192,20 +192,25 @@ else
                                         <div class="toast-container position-static w-100 d-flex flex-column align-items-stretch">
                                             @foreach (var msg in messagesInChat)
                                             {
-                                                <div class="toast fade show w-75 rounded-3 align-self-start">
-                                                    <div class="toast-header bg-primary text-light">
-                                                        <i class="bi bi-person me-1" aria-hidden="true"></i>
-                                                        <strong class="me-auto text-capitalize">User</strong>
-                                                    </div>
-                                                    <div class="toast-body">
-                                                        <i class="bi bi-grip-vertical mr-2 text-black-50"></i>
-                                                        @if (msg.Prompt.StartsWith("data"))
-                                                        {
-                                                            <img style='max-height:300px; max-width:300px;' src='@msg.Prompt' />
-                                                        }
-                                                        else
-                                                         @(new MarkupString(msg.Prompt))
-                                                    </div>
+                                            <div class="toast fade show w-75 rounded-3 align-self-start">
+                                                <div class="toast-header bg-primary text-light">
+                                                    <i class="bi bi-person me-1" aria-hidden="true"></i>
+                                                    <strong class="me-auto text-capitalize">User</strong>
+                                                </div>
+                                                <div class="toast-body">
+                                                    <i class="bi bi-grip-vertical mr-2 text-black-50"></i>
+                                                    @if (msg.Prompt.StartsWith("data:image"))
+                                                    {
+                                                        <img style='max-height:300px; max-width:300px;' src='@msg.Prompt' />
+                                                    }
+                                                    else if (msg.Prompt.StartsWith("data:doc"))
+                                                    {
+                                                        var fileName = msg.Prompt.Substring(9);
+                                                        <img style="width:25px" src="@FileUtils.GetIconForFileType(fileName)" /> @fileName
+                                                    }
+                                                    else
+                                                        @(new MarkupString(msg.Prompt))
+                                                </div>
                                                 </div>
                                                 <div class="toast fade show w-75 rounded-3 align-self-end">
                                                     <div class="toast-header bg-success text-dark">
@@ -667,7 +672,7 @@ else
             };
 
             //Gets the image MIME type by reading the first few bytes of the image
-            uploadImageType = ImageUtils.GetMimeTypeFromImage(memoryStream);
+            uploadImageType = FileUtils.GetMimeTypeFromImage(memoryStream);
 
             if (string.IsNullOrEmpty(uploadImageType))
             {
@@ -721,6 +726,13 @@ else
             {
                 Thread.Sleep(1000);
             }
+
+            //Show the user that the document has been processed
+            Message message = new Message(currentSession.Id, $"data:doc;{filename}", "What would you like to know about that document?");
+            if (messagesInChat != null && currentSession != null)
+                messagesInChat.Add(message);
+            //store the chat session history
+            await UpdateSessionAndMessage(currentSession?.Id ?? string.Empty, message);
 
         }
     }
@@ -838,6 +850,10 @@ else
                 {
                     string mimeType = ExtractMimeType(msg.Prompt);
                     history.AddUserMessage(new ChatMessageContentItemCollection() { new ImageContent() { Data = Convert.FromBase64String(msg.Prompt.Substring(mimeType.Length + 13)), MimeType=mimeType } });
+                }
+                else if (msg.Prompt.StartsWith("data:doc"))
+                {
+                    //Do nothing since the document is already in the memory store
                 }
                 else
                 {
