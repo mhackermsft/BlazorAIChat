@@ -3,6 +3,7 @@ using BlazorAIChat.Authentication;
 using BlazorAIChat.Components;
 using BlazorAIChat.Models;
 using BlazorAIChat.Services;
+using BlazorAIChat.Utils;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.EntityFrameworkCore;
@@ -11,6 +12,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 
 builder.Services.Configure<AppSettings>(builder.Configuration);
+builder.Services.AddHttpClient("retryHttpClient").AddPolicyHandler(RetryHelper.GetRetryPolicy());
 builder.Services.AddDbContext<AIChatDBContext>();
 builder.Services.AddScoped<UserService>();
 builder.Services.AddSingleton<ChatHistoryService>();

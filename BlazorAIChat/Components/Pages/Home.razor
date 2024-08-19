@@ -7,6 +7,7 @@
 @inject ChatHistoryService chatHistoryService
 @inject AIChatDBContext dbContext
 @inject UserService userService
+@inject IHttpClientFactory httpClientFactory
 @inject IOptions<AppSettings> appSettings
 
 @using Azure
@@ -261,6 +262,9 @@ else
 
 @code {
 
+    //HTTP Client with retry policy
+    private HttpClient? httpClient;
+
     //NavMenu component
     private NavMenu? NavMenu = default;
 
@@ -317,6 +321,10 @@ else
     // Initialization of the page
     protected override async Task OnInitializedAsync()
     {
+        //Setup the HttpClinet
+        httpClient = httpClientFactory.CreateClient("retryHttpClient");
+
+        //Get instance of NavMenu
         NavMenu = new NavMenu();
 
         try
@@ -350,8 +358,8 @@ else
 
             // Create a kernel builder with Azure OpenAI chat completion. Both chat completion and embedding use the same OpenAI endpoint and key.
             builder = Kernel.CreateBuilder()
-            .AddAzureOpenAIChatCompletion(settings.AzureOpenAIChatCompletion.Model, settings.AzureOpenAIChatCompletion.Endpoint, settings.AzureOpenAIChatCompletion.ApiKey)
-            .AddAzureOpenAITextEmbeddingGeneration(settings.AzureOpenAIEmbedding.Model, settings.AzureOpenAIChatCompletion.Endpoint, settings.AzureOpenAIChatCompletion.ApiKey);
+            .AddAzureOpenAIChatCompletion(settings.AzureOpenAIChatCompletion.Model, settings.AzureOpenAIChatCompletion.Endpoint, settings.AzureOpenAIChatCompletion.ApiKey,httpClient: httpClient)
+            .AddAzureOpenAITextEmbeddingGeneration(settings.AzureOpenAIEmbedding.Model, settings.AzureOpenAIChatCompletion.Endpoint, settings.AzureOpenAIChatCompletion.ApiKey, httpClient: httpClient);
 
             // Add enterprise components
             builder.Services.AddLogging(services => services.AddConsole().SetMinimumLevel(LogLevel.Trace));
@@ -370,8 +378,8 @@ else
                     Endpoint = settings.AzureOpenAIChatCompletion.Endpoint,
                     Deployment = settings.AzureOpenAIEmbedding.Model,
                     Auth = AzureOpenAIConfig.AuthTypes.APIKey,
-                    APIKey = settings.AzureOpenAIChatCompletion.ApiKey,
-                })
+                    APIKey = settings.AzureOpenAIChatCompletion.ApiKey
+                },httpClient: httpClient)
             .WithAzureOpenAITextGeneration(new AzureOpenAIConfig
                 {
                     APIType = AzureOpenAIConfig.APITypes.ChatCompletion,
@@ -379,7 +387,7 @@ else
                     Deployment = settings.AzureOpenAIChatCompletion.Model,
                     Auth = AzureOpenAIConfig.AuthTypes.APIKey,
                     APIKey = settings.AzureOpenAIChatCompletion.ApiKey,
-                });
+                }, httpClient: httpClient);
 
 
             //If Azure AI Search is configured, we use that for storage
@@ -478,7 +486,7 @@ else
                 await js.InvokeVoidAsync("scrollToBottom", "MessagesInChatdiv");
 
                 //Look up possible knowledge from the memory store
-                var answer = await RetryHelper.RetryAsync<MemoryAnswer>(()=> kernelMemory!.AskAsync(messageToProcess, currentSession.Id),TimeSpan.FromSeconds(1),4);
+                var answer =  await kernelMemory!.AskAsync(messageToProcess, currentSession.Id);
                 if (!answer.NoResult)
                 {
                     history.AddUserMessage("Here is some supporting information:");
@@ -501,7 +509,7 @@ else
     }
 
     //Generates text from the AI and streams it to the chat window
-    public async Task StreamChatCompletionAsync(ChatHistory history,Message message, IChatCompletionService chatCompletionService)
+    public async Task StreamChatCompletionAsync(ChatHistory history, Message message, IChatCompletionService chatCompletionService)
     {
         try
         {
@@ -510,40 +518,35 @@ else
             isResponding = true;
             StateHasChanged();
 
-            await RetryHelper.RetryAsync<Task>(async ()=>
+            await foreach (var chatUpdate in chatCompletionService.GetStreamingChatMessageContentsAsync(history))
             {
-                await foreach (var chatUpdate in chatCompletionService.GetStreamingChatMessageContentsAsync(history))
+                //If the user has requested to stop responding, then break out of the loop
+                if (stopResponding)
                 {
-                    //If the user has requested to stop responding, then break out of the loop
-                    if (stopResponding)
-                    {
-                        break;
-                    }
-
-                    //If the chat update has content, then append it to the results
-                    if (chatUpdate?.Content != null)
-                    {
-                        finalResults.Append(chatUpdate.Content);
-                        markdownBuilder.Append(chatUpdate.Content);
-                        string partialHTML = md.Transform(markdownBuilder.ToString());
-
-                        message.Completion = FixupTextForCode(partialHTML.ToString());
-                        // Scroll to the bottom of the chat window
-                        await js.InvokeVoidAsync("scrollToBottom", "MessagesInChatdiv");
-                        StateHasChanged();
-                    }
+                    break;
                 }
-                return Task.CompletedTask;
-            },TimeSpan.FromSeconds(1),4);
-       
+
+                //If the chat update has content, then append it to the results
+                if (chatUpdate?.Content != null)
+                {
+                    finalResults.Append(chatUpdate.Content);
+                    markdownBuilder.Append(chatUpdate.Content);
+                    string partialHTML = md.Transform(markdownBuilder.ToString());
+
+                    message.Completion = FixupTextForCode(partialHTML.ToString());
+                    // Scroll to the bottom of the chat window
+                    await js.InvokeVoidAsync("scrollToBottom", "MessagesInChatdiv");
+                    StateHasChanged();
+                }
+            }
             message.Completion = md.Transform(FixupTextForCode(finalResults.ToString()));
             history.AddAssistantMessage(finalResults.ToString());
 
             //store the chat session history
-            await UpdateSessionAndMessage(currentSession?.Id??string.Empty, message);
+            await UpdateSessionAndMessage(currentSession?.Id ?? string.Empty, message);
 
             //Update the chat session name if it is the default new chat name
-            if (currentSession!=null && currentSession.Name==Models.Constants.NEW_CHAT)
+            if (currentSession != null && currentSession.Name == Models.Constants.NEW_CHAT)
             {
                 currentSession.Name = await SummarizeChatSessionNameAsync(currentSession?.SessionId);
                 NavMenu.UpdateNavMenuDisplay("summarized text", currentSession);
@@ -712,7 +715,7 @@ else
             tags.Add("user", currentUser.Id);
             memoryStream.Position = 0;
 
-            await RetryHelper.RetryAsync<string>(() => kernelMemory.ImportDocumentAsync(memoryStream, filename, docId, tags, index), TimeSpan.FromSeconds(1), 4);
+            await kernelMemory.ImportDocumentAsync(memoryStream, filename, docId, tags, index);
 
             while(!await kernelMemory.IsDocumentReadyAsync(docId,index))
             {

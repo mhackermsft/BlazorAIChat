@@ -1,23 +1,46 @@
 ﻿using Polly;
+using Polly.Extensions.Http;
+using System.Net.Http;
+using System;
+using System.Linq;
 
 namespace BlazorAIChat.Utils
 {
     public static class RetryHelper
     {
-        public static async Task<T> RetryAsync<T>(Func<Task<T>> action, TimeSpan initialWait, int retryCount = 0)
+        public static IAsyncPolicy<HttpResponseMessage> GetRetryPolicy()
         {
-            PolicyResult<T> policyResult = await Policy
-                .Handle<Exception>()
-                .WaitAndRetryAsync(retryCount, retryAttempt =>
-                    TimeSpan.FromMilliseconds(initialWait.TotalMilliseconds * Math.Pow(2, retryAttempt - 1)))
-                .ExecuteAndCaptureAsync(action);
-
-            if (policyResult.Outcome == OutcomeType.Failure)
-            {
-                throw policyResult.FinalException;
-            }
-
-            return policyResult.Result;
+            return HttpPolicyExtensions
+                .HandleTransientHttpError()
+                .OrResult(msg => msg.Headers.RetryAfter != null) // Check if the Retry-After header is present
+                .WaitAndRetryAsync(5, (retryAttempt, response, context) =>
+                {
+                    if (response.Result != null && response.Result.Headers.TryGetValues("Retry-After", out var values))
+                    {
+                        var retryAfter = values.First();
+                        Console.WriteLine($"URL: {response.Result.RequestMessage?.RequestUri}, Retry-After header value: {retryAfter}");
+                        if (int.TryParse(retryAfter, out var seconds))
+                        {
+                            return TimeSpan.FromSeconds(seconds); // Directly return TimeSpan
+                        }
+                        else if (DateTimeOffset.TryParse(retryAfter, out var dateTime))
+                        {
+                            var delay = dateTime - DateTimeOffset.UtcNow;
+                            return delay > TimeSpan.Zero ? delay : TimeSpan.Zero; // Directly return TimeSpan
+                        }
+                    }
+                    var baseDelay = TimeSpan.FromSeconds(Math.Pow(2, retryAttempt - 1));
+                    var jitter = TimeSpan.FromMilliseconds(new Random().Next(-500, 500));
+                    return baseDelay + jitter; // Directly return TimeSpan
+                }, onRetryAsync: (outcome, timespan, retryAttempt, context) =>
+                {
+                    // write to console the retry attempt
+                    Console.WriteLine($"Retry {retryAttempt} scheduled in {timespan.TotalSeconds} seconds due to {outcome.Exception?.Message ?? "an error"}");
+                    return Task.CompletedTask; // This is correct for an async callback
+                });
         }
+
+
+
     }
 }
