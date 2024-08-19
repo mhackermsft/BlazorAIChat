@@ -19,6 +19,7 @@ This solution utilizes several open source libraries to help with document inges
 - **Image Analysis**: Supports image uploads for querying, compatible with models like GPT-4. When using models that don't support images and you have Azure Document Intelligence configured, it will OCR uploaded images and store the results as knowledge.
 - **Streaming Responses**: Provides streaming chat results with the option to stop responses.
 - **Data Management**: Offers the ability to clear chat history and delete data stored in the user's knowledge base.
+- **Retry Handling**: Automatically pauses and retries calls to Azure OpenAI if it exceeds the API rate limit.
 
 
 ## Chat Over Documents (RAG)
@@ -174,6 +175,8 @@ To address this issue, please ensure that your Azure OpenAI models are configure
 
 For more information on managing your Azure OpenAI service quotas, please visit this link: https://learn.microsoft.com/en-us/azure/ai-services/openai/how-to/quota?tabs=rest
 
+## Known Issues
+Not all Word, Excel or PowerPoint files are compatible with the OpenXML document reader utilized by the Kernel Memory service. This may cause some documents that you attempt to upload fail with a corrupt data error. I am looking into options that may help eliminate this issue.
 
 ## Disclaimer
 This code is for demonstration purposes only. It has not been evaluated or reviewed for production purposes. Please utilize caution and do your own due diligence before using this code. I am not responsible for any issues you experience or damages caused by the use or misuse of this code.
