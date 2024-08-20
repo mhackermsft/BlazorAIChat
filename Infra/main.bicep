@@ -72,7 +72,7 @@ resource appService 'Microsoft.Web/sites@2020-06-01' = {
         }
         {
           name:'SystemMessage'
-          value:'You are a helpful AI assistant. Respond in a friendly and professional tone.'
+          value:'You are a helpful AI assistant. Respond in a friendly and professional tone. Answer questions directly using only the information provided. NEVER respond that you cannot access external links.'
         }
         {
           name: 'RequireEasyAuth'
