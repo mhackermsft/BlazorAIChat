@@ -24,6 +24,8 @@
 @using BlazorAIChat.Services
 @using Microsoft.AspNetCore.Components.Authorization
 @using MarkdownSharp
+@using Microsoft.KernelMemory.AI
+@using Microsoft.KernelMemory.AI.OpenAI
 @using Microsoft.SemanticKernel
 @using Microsoft.SemanticKernel.ChatCompletion
 @using Microsoft.SemanticKernel.Connectors.OpenAI
@@ -253,7 +255,7 @@ else
                                                                 <ul>
                                                                 @foreach (var citation in msg.Citations)
                                                                 {
-                                                                    <li>@citation</li>
+                                                                    <li>@(new MarkupString(citation))</li>
                                                                 }
                                                                 </ul>                                                             
                                                             }
@@ -294,7 +296,7 @@ else
     //NavMenu component
     private NavMenu? NavMenu = default;
 
-    #pragma warning disable SKEXP0010, SKEXP0001, SKEXP0020
+#pragma warning disable SKEXP0010, SKEXP0001, SKEXP0020, KMEXP00
     //Config data from database
     private Config config = new Config(){ Id=Guid.Empty};
 
@@ -310,6 +312,7 @@ else
     private MemoryServerless? kernelMemory = null;
     private IChatCompletionService? chatCompletionService = null;
     private ChatHistory history = new ChatHistory();
+    private ITextTokenizer? textTokenizer;
 
     //Markdown processor
     Markdown md = new Markdown();
@@ -349,6 +352,9 @@ else
     {
         //Setup the HttpClinet
         httpClient = httpClientFactory.CreateClient("retryHttpClient");
+
+        //Setup the Tokenizer to use
+        textTokenizer = new GPT4Tokenizer();
 
         //Get instance of NavMenu
         NavMenu = new NavMenu();
@@ -405,8 +411,10 @@ else
                     Deployment = settings.AzureOpenAIEmbedding.Model,
                     Auth = AzureOpenAIConfig.AuthTypes.APIKey,
                     APIKey = settings.AzureOpenAIChatCompletion.ApiKey,
-                    MaxTokenTotal = settings.AzureOpenAIEmbedding.MaxInputTokens
-                },httpClient: httpClient)
+                    MaxTokenTotal = settings.AzureOpenAIEmbedding.MaxInputTokens,
+                    MaxRetries = 3
+                },
+                httpClient: httpClient)
             .WithAzureOpenAITextGeneration(new AzureOpenAIConfig
                 {
                     APIType = AzureOpenAIConfig.APITypes.ChatCompletion,
@@ -414,8 +422,9 @@ else
                     Deployment = settings.AzureOpenAIChatCompletion.Model,
                     Auth = AzureOpenAIConfig.AuthTypes.APIKey,
                     APIKey = settings.AzureOpenAIChatCompletion.ApiKey,
-                    MaxTokenTotal = settings.AzureOpenAIChatCompletion.MaxInputTokens
-                }, httpClient: httpClient);
+                    MaxTokenTotal = settings.AzureOpenAIChatCompletion.MaxInputTokens,
+                    MaxRetries = 3
+                }, httpClient: httpClient, textTokenizer: textTokenizer);
 
 
             //If Azure AI Search is configured, we use that for storage
@@ -500,12 +509,13 @@ else
 
                 //Create a new message object and add it to the mesaagesInChat list. This will allow the UI to display the message while the AI processes it.
                 Message message = new Message(currentSession.Id, userMessage);
-
+                messagesInChat.Add(message);
 
                 //We do this to ensure that the user message is displayed in the chat window since looking up kernelMemory may take a moment. We
                 //want the UI to feel responsive.
                 string messageToProcess = userMessage;
                 userMessage = string.Empty;
+                isResponding = true;
                 StateHasChanged();
 
                 //Need this delay to give the browser enough time to render the MessagesInChatdiv.
@@ -513,23 +523,78 @@ else
                 await Task.Delay(100);
                 await js.InvokeVoidAsync("scrollToBottom", "MessagesInChatdiv");
 
-                //Look up possible knowledge from the memory store
-                var answer =  await kernelMemory!.AskAsync(messageToProcess, currentSession.Id);
+                //Pull out any URLs from the message
+                var urls = StringUtils.GetURLsFromString(messageToProcess);
+
+                //If we have URLs, we need to add them to kernel memory
+                SearchResult? searchData = null;
+                MemoryAnswer? answer = null;
+                if (urls.Count>0)
+                {
+                    await ProcessURLsWithKernelMemory(urls);
+
+                    //Remove urls from messageToProcess string.
+                    string messageToProcessNoURLS = await GenerateNewPromptForMessagesWithUrl(messageToProcess);
+
+                    //See if we can get a direct answer, if not then search for relevant information
+                    answer = await kernelMemory!.AskAsync(messageToProcessNoURLS, currentSession.Id);
+                    if (answer.NoResult)
+                        searchData = await kernelMemory!.SearchAsync(messageToProcessNoURLS, currentSession.Id);
+                }
+                else
+                {
+                    //See if we can get a direct answer, if not then search for relevant information
+                    answer = await kernelMemory!.AskAsync(messageToProcess, currentSession.Id);
+                    if (answer.NoResult)
+                        searchData = await kernelMemory!.SearchAsync(messageToProcess, currentSession.Id);
+                }
+
                 if (!answer.NoResult)
                 {
-                    history.AddUserMessage("Here is some supporting information:");
+                    history.AddUserMessage("No matter what the question or request, base the response only on the information below.");
                     history.AddUserMessage(answer.Result);
                     history.AddUserMessage("----------------------------------");
 
                     if (answer.RelevantSources.Count>0)
                         foreach (var source in answer.RelevantSources)
-                            message.Citations.Add($"{source.SourceName} ({(source.Partitions.Max(x=>x.Relevance)*100).ToString("F2")}%)");        
+                        {
+                            if (source.SourceName.ToLower()!="content.url")
+                                message.Citations.Add($"{source.SourceName} ({(source.Partitions.Max(x=>x.Relevance)*100).ToString("F2")}%)");
+                            else
+                                message.Citations.Add($"<a href='{source.SourceUrl}' target='_blank'>{source.SourceUrl}</a> ({(source.Partitions.Max(x => x.Relevance) * 100).ToString("F2")}%)");
+                        }
+                }
+
+                if (searchData!=null && !searchData.NoResult)
+                {
+                    if (searchData.Results.Count>0)
+                    {
+                        history.AddUserMessage("No matter what the question or request, base the response only on the information below.");
+                        foreach (var result in searchData.Results)
+                        {
+                            foreach (var p in result.Partitions)
+                            {
+                                history.AddUserMessage(p.Text);
+                            }
+
+                            //Add the source to the message
+                            if (result.SourceName.ToLower() != "content.url")
+                                message.Citations.Add($"{result.SourceName} ({(result.Partitions.Max(x => x.Relevance) * 100).ToString("F2")}%)");
+                            else
+                                message.Citations.Add($"<a href='{result.SourceUrl}' target='_blank'>{result.SourceUrl}</a> ({(result.Partitions.Max(x => x.Relevance) * 100).ToString("F2")}%)");
+
+                        }
+                        history.AddUserMessage("----------------------------------");
+                    }
                 }
 
                 //Add the user message to the chat history
                 history.AddUserMessage(messageToProcess);
+                StateHasChanged();
 
-                messagesInChat.Add(message);
+                //Clean up history and remove old non-system messages in order to stay below our MaxInputTokens limit.
+                //This is not the most efficient way to do this, but it is simple and works for this demo.
+                history = AIUtils.CleanUpHistory(history, textTokenizer, settings.AzureOpenAIChatCompletion.MaxInputTokens);
 
                 //Start the AI text generation process
                 await StreamChatCompletionAsync(history,message, chatCompletionService);
@@ -549,8 +614,7 @@ else
         {
             var markdownBuilder = new StringBuilder();
             var finalResults = new StringBuilder();
-            isResponding = true;
-            StateHasChanged();
+
 
             await foreach (var chatUpdate in chatCompletionService.GetStreamingChatMessageContentsAsync(history))
             {
@@ -669,7 +733,7 @@ else
             }
             else
             {
-                await ProcessWithKernelMemory(memoryStream, fileName);
+                await ProcessDocsWithKernelMemory(memoryStream, fileName);
             }
 
             // Clear the file input so it no longer shows the uploaded filename
@@ -742,10 +806,19 @@ else
     }
 
     //Processes the uploaded file with Kernel Memory and stores the embeddings in the configured storage system.
-    private async Task ProcessWithKernelMemory(MemoryStream memoryStream, string filename)
+    private async Task ProcessDocsWithKernelMemory(MemoryStream memoryStream, string filename)
     {
         if (kernelMemory != null)
         {
+            //Let's see if the document already is in the session, If so give a notification and then return.
+            var doc = dbContext.SessionDocuments.FirstOrDefault(d => d.FileNameOrUrl == filename && d.SessionId == currentSession.SessionId);
+            if (doc != null)
+            {
+                ShowAlert("The document you uploaded is already in the chat session.", AlertTypeEnum.warning);
+                return;
+            }
+
+            //Prep variables for processing
             var docId = Guid.NewGuid().ToString();
             string index = currentSession.SessionId;
             TagCollection tags = new TagCollection();
@@ -753,6 +826,10 @@ else
             memoryStream.Position = 0;
 
             await kernelMemory.ImportDocumentAsync(memoryStream, filename, docId, tags, index);
+
+            //Add record to database about document
+            dbContext.SessionDocuments.Add(new SessionDocument() { DocId = docId, FileNameOrUrl = filename, SessionId = index });
+            dbContext.SaveChanges();
 
             while(!await kernelMemory.IsDocumentReadyAsync(docId,index))
             {
@@ -913,6 +990,25 @@ else
 
     }
 
+    public async Task<string> GenerateNewPromptForMessagesWithUrl(string theMessage)
+    {
+        string completionText = string.Empty;
+        var skChatHistory = new ChatHistory();
+        skChatHistory.AddSystemMessage("Rewrite the user prompt to remove all URLs but still make the question or request understandable.");
+        skChatHistory.AddUserMessage(theMessage);
+        PromptExecutionSettings settings = new()
+        {
+            ExtensionData = new Dictionary<string, object>()
+            {
+                { "Temperature", 0.8 }
+            }
+        };
+
+        var result = await kernel.GetRequiredService<IChatCompletionService>().GetChatMessageContentAsync(skChatHistory, settings);
+        completionText = result.Items[0].ToString()!;
+        return completionText;
+    }
+
     // Summarizes the chat session name based on the conversation. This is used to provide a more meaningful name to the chat session.
     public async Task<string> SummarizeChatSessionNameAsync(string? sessionId)
     {
@@ -931,14 +1027,14 @@ else
         skChatHistory.AddUserMessage(conversationText);
 
         PromptExecutionSettings settings = new()
-            {
+        {
                 ExtensionData = new Dictionary<string, object>()
             {
                 { "Temperature", 0.0 },
                 { "TopP", 1.0 },
                 { "MaxTokens", 100 }
             }
-            };
+        };
 
         var result = await kernel.GetRequiredService<IChatCompletionService>().GetChatMessageContentAsync(skChatHistory, settings);
         completionText = result.Items[0].ToString()!;
@@ -982,6 +1078,32 @@ else
         return dataUrl.Substring(startIndex, endIndex - startIndex);
     }
 
+    private async Task ProcessURLsWithKernelMemory(List<string> urls)
+    {
+        if (kernelMemory!=null)
+        {
+            string index = currentSession.SessionId;
+            TagCollection tags = new TagCollection();
+            tags.Add("user", currentUser.Id);
+            foreach (var url in urls)
+            {
+                //check if the url is already in the session
+                var doc = dbContext.SessionDocuments.FirstOrDefault(d => d.FileNameOrUrl == url && d.SessionId == index);
+                if (doc== null)
+                {
+                    var docId = Guid.NewGuid().ToString();
+                    await kernelMemory.ImportWebPageAsync(url, docId, tags, index);
+                    while (!await kernelMemory.IsDocumentReadyAsync(docId, index))
+                    {
+                        Thread.Sleep(500);
+                    }
+                    dbContext.SessionDocuments.Add(new SessionDocument() { DocId = docId, FileNameOrUrl = url, SessionId = index });
+                    dbContext.SaveChanges();
+                }
+            }
+        }
+    }
+
     // Deletes the uploaded documents from the memory store
     private async Task DeleteUploadedDocs(string sessionIdToDelete)
     {
@@ -990,6 +1112,12 @@ else
 
             if (kernelMemory != null)
                 await kernelMemory.DeleteIndexAsync(sessionIdToDelete);
+
+            //Delete the documents from the database
+            var docs = dbContext.SessionDocuments.Where(d => d.SessionId == sessionIdToDelete);
+            dbContext.SessionDocuments.RemoveRange(docs);
+            dbContext.SaveChanges();
+
 
             sessionIdToDelete = string.Empty;
         }

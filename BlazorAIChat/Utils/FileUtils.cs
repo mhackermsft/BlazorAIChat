@@ -67,5 +67,43 @@ namespace BlazorAIChat.Utils
 
             return string.Empty;
         }
+
+        public static async Task<string> GetUrlContentTypeAsync(string url)
+        {
+            using (var httpClient = new HttpClient())
+            {
+                var request = new HttpRequestMessage(HttpMethod.Head, url);
+                var response = await httpClient.SendAsync(request);
+                if (response.IsSuccessStatusCode)
+                    return response.Content.Headers.ContentType?.ToString() ?? string.Empty;
+                else
+                    return "404";
+            }
+        }
+
+        public static async Task<MemoryStream>? GetDocStreamFromURLAsync(string url)
+        {
+            // Get the contents from the URL.  If it is not text or html, return a memory stream of the contents, else return null.
+            using (var httpClient = new HttpClient())
+            {
+                var response = await httpClient.GetAsync(url);
+                if (response.IsSuccessStatusCode)
+                {
+                    var contentType = response.Content.Headers.ContentType?.ToString() ?? string.Empty;
+                    if (contentType.Contains("text") || contentType.Contains("html"))
+                        return null;
+                    else
+                    {
+                        var stream = new MemoryStream();
+                        await response.Content.CopyToAsync(stream);
+                        stream.Position = 0;
+                        return stream;
+                    }
+                }
+                else
+                    return null;
+
+            }
+        }
     }
 }

@@ -22,6 +22,8 @@ namespace BlazorAIChat.Models
 
         public DateTime SessionCreatedAt { get; set; }
 
+        public List<SessionDocument> Documents { get; set; }
+
         public Session()
         {
             Id = Guid.NewGuid().ToString();
