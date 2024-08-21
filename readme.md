@@ -21,6 +21,7 @@ This solution utilizes several open source libraries to help with document inges
 - **Streaming Responses**: Provides streaming chat results with the option to stop responses.
 - **Data Management**: Offers the ability to clear chat history and delete data stored in the user's knowledge base.
 - **Retry Handling**: Automatically pauses and retries calls to Azure OpenAI if it exceeds the API rate limit.
+- **Chat History Pruning**: Designed to help ensure that the requests to Azure OpenAI do not exceed the context window.
 
 
 ## Chat Over Documents (RAG)
@@ -30,13 +31,13 @@ Retrieval-augmented generation (RAG) is essential for AI chat because it enhance
 
 RAG also helps address the limited context window of large language models by only sending relevant knowledge to the model.
 
-This demo utilizes a basic form of RAG that extracts the text from the uploaded documents or provided URLs, splits the content at paragraphs, and then generate embeddings for each paragraph. The results are stored by default on the web server filesystem. The original source document is not stored in the original format.
+This demo utilizes a solution called Kernel Memory that extracts the text from documents or provided URLs, splits the content into chunks, and then generate embeddings for each chunk. The results are then stored, by default, on the web server filesystem. The original source document is not stored in the original format. To improve performance you may choose to use PostgreSQL or Azure AI Search as the storage location.
 
-When a user chats with the solution, a semantic search is completed across the stored paragraphs and the 10 most related paragraphs are returned to the large language model as knowledge so it can attempt to answer the user's question.
+When a user chats with the solution, a semantic search is completed across the stored knowledge and the most related pieces of knowledge are returned to the large language model so it can attempt to answer the user's question.
 
-For more accurate document ingestion, processing, and semantic search it is recommended to use a solution that uses the following services as part of the RAG process:
-* Azure AI Search
-* Azure Document Intelligence
+To improve this applications performance during the RAG process you may choose to utilize the following Azure AI Services:
+* Azure AI Search 
+* Azure Document Intelligence (For OCR when using models that don't support images)
 
 Note: If deployed on an Azure App Service with EasyAuth enabled, the uploaded documents and provided URLs become knowledge for only the user who provided the content. It does not share the knowledge with other users of the solution.  If you are not using EasyAuth, you are running local, or deployed the app on another .NET web host, all of the users will be considered guests and all of the knowledge provided will be shared.
 
