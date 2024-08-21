@@ -17,6 +17,7 @@ This solution utilizes several open source libraries to help with document inges
 - **Authentication**: Supports EasyAuth authentication when hosted on Azure.
 - **Document Upload**: Allows users to upload TXT, DOCX, XLSX, PPTX, or PDF documents into the knowledge base. When using Azure App Service with EasyAuth, uploaded knowledge is associated exclusively with the user.
 - **Image Analysis**: Supports image uploads for querying, compatible with models like GPT-4. When using models that don't support images and you have Azure Document Intelligence configured, it will OCR uploaded images and store the results as knowledge.
+- **Data Extraction from URLs**: URLs to web pages or documents included in a chat message will be used as knowledge for answering questions.
 - **Streaming Responses**: Provides streaming chat results with the option to stop responses.
 - **Data Management**: Offers the ability to clear chat history and delete data stored in the user's knowledge base.
 - **Retry Handling**: Automatically pauses and retries calls to Azure OpenAI if it exceeds the API rate limit.
@@ -29,7 +30,7 @@ Retrieval-augmented generation (RAG) is essential for AI chat because it enhance
 
 RAG also helps address the limited context window of large language models by only sending relevant knowledge to the model.
 
-This demo utilizes a basic form of RAG that extracts the text from the uploaded documents, splits the content at paragraphs, and then generate embeddings for each paragraph. The results are stored by default on the web server filesystem. The original source document is not stored in the original format.
+This demo utilizes a basic form of RAG that extracts the text from the uploaded documents or provided URLs, splits the content at paragraphs, and then generate embeddings for each paragraph. The results are stored by default on the web server filesystem. The original source document is not stored in the original format.
 
 When a user chats with the solution, a semantic search is completed across the stored paragraphs and the 10 most related paragraphs are returned to the large language model as knowledge so it can attempt to answer the user's question.
 
@@ -37,7 +38,7 @@ For more accurate document ingestion, processing, and semantic search it is reco
 * Azure AI Search
 * Azure Document Intelligence
 
-Note: If deployed on an Azure App Service with EasyAuth enabled, the uploaded documents become knowledge for only the user who uploaded the document. It does not share the knowledge with other users of the solution.  If you are not using EasyAuth, you are running local, or deployed the app on another .NET web host, all of the users will be considered guests and all of the knowledge uploaded will be shared.
+Note: If deployed on an Azure App Service with EasyAuth enabled, the uploaded documents and provided URLs become knowledge for only the user who provided the content. It does not share the knowledge with other users of the solution.  If you are not using EasyAuth, you are running local, or deployed the app on another .NET web host, all of the users will be considered guests and all of the knowledge provided will be shared.
 
 ## Requirements
 - **Azure Subscription**: Must include at least one Azure OpenAI chat model and one Azure OpenAI embedding model deployed. Optionally you can use Azure PostgreSQL for the knowledge storage. 
