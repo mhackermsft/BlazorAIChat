@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.29.47.4906",
-      "templateHash": "8329698866237484407"
+      "templateHash": "15763934296392086796"
     }
   },
   "parameters": {
@@ -112,7 +112,7 @@
             },
             {
               "name": "AzureOpenAIChatCompletion__Model",
-              "value": "[toLower(format('{0}-{1}', parameters('aiChatModelName'), parameters('uniqueName')))]"
+              "value": "[toLower(format('{0}', parameters('aiChatModelName')))]"
             },
             {
               "name": "AzureOpenAIChatCompletion__MaxInputTokens",
@@ -124,7 +124,7 @@
             },
             {
               "name": "AzureOpenAIEmbedding__Model",
-              "value": "[toLower(format('{0}-{1}', parameters('aiEmbedModelName'), parameters('uniqueName')))]"
+              "value": "[toLower(format('{0}', parameters('aiEmbedModelName')))]"
             },
             {
               "name": "AzureOpenAIEmbedding__MaxInputTokens",
