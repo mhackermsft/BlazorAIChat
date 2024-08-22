@@ -161,13 +161,13 @@ This solution allows you to require users to request access to the application i
 If authorization is not enabled, then any authenticated user will be able to utilize the application and there will not be a concept of administrators.  NOTE: The default deployment is setup so that if EasyAuth is enabled, authorization will also be enabled. If an admin chooses to turn off authorization, there is currently no way to turn it back on via the application.
 
 ## Knowledge Storage
-All uploaded knowledge is stored by default in a SQLite database locally on the application host. The file is called memory.sqlite and is NOT encrypted. It is important to protect this file if any sensitive content is uploaded to the solution. 
+All uploaded knowledge is stored by default on the web server's file system under the KNN folder. 
 
 Optionally you can configure the demo to utilize an Azure PostgreSQL instance as the knowledge store.
 
-Users can use the clear button in the application to delete all of their uploaded knowledge. They currently cannot choose specific pieces of knowledge to delete.
+Users can use the delete chat button in the application to remove a chat and delete all of the uploaded knowledge for that chat conversation. 
 
-An administrator may choose to delete the memory.sqlite file from the host to clear out all knowledge for all users.
+An administrator may choose to delete all files and directories from the KNN folder.
 
 ## Impact of Azure OpenAI Capacity Settings
 
