@@ -28,8 +28,8 @@
             {
                 return new User
                 {
-                    Id = "Guest User",
-                    Name = "Guest User",
+                    Id = Constants.GUEST_USER,
+                    Name = Constants.GUEST_USER,
                     Role = UserRoles.Guest
                 };
             }

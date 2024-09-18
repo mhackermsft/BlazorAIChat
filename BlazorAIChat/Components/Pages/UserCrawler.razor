@@ -1,0 +1,100 @@
+﻿@page "/usercrawler"
+@rendermode InteractiveServer
+@inject NavigationManager NavigationManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject AIChatDBContext dbContext
+@using BlazorAIChat.Components.Shared
+@using BlazorAIChat.Models
+@using BlazorAIChat.Utils
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.EntityFrameworkCore
+
+
+<h3>Web Content Crawler</h3>
+<div class="row">
+    <div class="col-md-6">
+        <label>URL:</label>
+        <InputText class="form-control" @bind-Value="newUrl" ></InputText>
+    </div>
+</div>
+<div class="row">
+    <div class="col-md-6">
+        <label>Depth:</label>
+        <InputNumber class="form-control" @bind-Value="newDepth" ></InputNumber>
+    </div>
+</div>
+<div class="row">
+    <div class="col-md-6">
+        <button type="button" class="btn btn-primary" @onclick="Crawl">Crawl</button>
+    </div>
+</div>
+<br/>
+<h4>Crawled URLs</h4>
+<div class="row">
+    <div class="col-md-12">
+        <table class="table">
+            <tr>
+                <th>URL</th>
+                <th>Status</th>
+                <th>Last Update</th>
+                <th></th>
+            </tr>
+
+            @foreach (var status in crawlerStatuses)
+            {
+                <tr>
+                    <td>@status.URL</td>
+                    <td>@status.LastStatus</td>
+                    <td>@status.LastUpdate</td>
+                    <td></td>
+                </tr>
+            }
+        </table>
+    </div>
+</div>
+
+@code {
+    private string newUrl = string.Empty;
+    private int newDepth = 2;
+    List<CrawlerStatus> crawlerStatuses = new List<CrawlerStatus>();
+    User? currentUser = null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCurrentUser();
+        await LoadCrawlData();
+    }
+
+    private async Task LoadCurrentUser()
+    {
+        try
+        {
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var userPrincipal = authState.User;
+            if (userPrincipal.Identity?.IsAuthenticated == true)
+            {
+                currentUser = UserUtils.ConvertPrincipalToUser(userPrincipal);
+            }
+            else
+                currentUser = new User() { Id = Constants.GUEST_USER, Role = UserRoles.Guest, Name = Constants.GUEST_USER };
+
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Initialization error: {ex.Message}");
+        }
+    }
+
+    private async Task LoadCrawlData()
+    {
+        crawlerStatuses = await dbContext.CrawlerStatuses.Where(x=>x.UserId==currentUser.Id).ToListAsync();
+    }
+
+    private async Task Crawl()
+    {
+        
+    }
+}
+
+
