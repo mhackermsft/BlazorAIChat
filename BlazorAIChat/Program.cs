@@ -13,10 +13,11 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.Configure<AppSettings>(builder.Configuration);
 builder.Services.AddHttpClient("retryHttpClient").AddPolicyHandler(RetryHelper.GetRetryPolicy());
-builder.Services.AddDbContext<AIChatDBContext>();
+builder.Services.AddDbContextFactory<AIChatDBContext>();
 builder.Services.AddScoped<UserService>();
 builder.Services.AddSingleton<ChatHistoryService>();
-builder.Services.AddSingleton<WebcrawlerService>();
+builder.Services.AddSingleton<WebCrawlerService>();
+builder.Services.AddSingleton<WebEmbeddingService>();
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
@@ -37,12 +38,18 @@ builder.Services.Configure<FormOptions>(options =>
 
 var app = builder.Build();
 
-//setup EF database and migrate to latest version
+
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
+
+    //setup EF database and migrate to latest version
     var context = services.GetRequiredService<AIChatDBContext>();
     context.Database.Migrate();
+
+    //ensure the WebEmbeddingService is running and force it to start upon loading.
+    var webEmbeddingService = services.GetRequiredService<WebEmbeddingService>();
+    webEmbeddingService.Start();
 }
 
 

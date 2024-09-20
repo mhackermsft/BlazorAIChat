@@ -5,11 +5,11 @@
 @inject NavigationManager NavigationManager
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject ChatHistoryService chatHistoryService
-@inject AIChatDBContext dbContext
+@inject IDbContextFactory<AIChatDBContext> dbContextFactory
 @inject UserService userService
 @inject IHttpClientFactory httpClientFactory
 @inject IOptions<AppSettings> appSettings
-@inject WebcrawlerService webcrawlerService
+@inject WebCrawlerService webcrawlerService
 
 @using Azure
 @using Azure.AI.DocumentIntelligence
@@ -19,6 +19,7 @@
 @using Azure.Storage.Blobs.Models
 @using BlazorAIChat.Components.Shared
 @using Microsoft.AspNetCore.Components.Web
+@using Microsoft.EntityFrameworkCore
 @using Microsoft.Extensions.Options;
 @using BlazorAIChat.Models
 @using BlazorAIChat.Utils
@@ -314,6 +315,9 @@ else
     private ChatHistory history = new ChatHistory();
     private ITextTokenizer? textTokenizer;
 
+    private int searchLimit = 5;
+    private double minRelevance = 0.5;
+
     //Markdown processor
     Markdown md = new Markdown();
 
@@ -384,9 +388,12 @@ else
             }
 
             //Get app config data
-            var dbConfig = dbContext.Config.FirstOrDefault();
-            if (dbConfig != null)
-                config = dbConfig;       
+            using (var dbContext = dbContextFactory.CreateDbContext())
+            {
+                var dbConfig = dbContext.Config.FirstOrDefault();
+                if (dbConfig != null)
+                    config = dbConfig;       
+            }
 
             // Create a kernel builder with Azure OpenAI chat completion. Both chat completion and embedding use the same OpenAI endpoint and key.
             builder = Kernel.CreateBuilder()
@@ -528,7 +535,13 @@ else
 
                 //If we have URLs, we need to add them to kernel memory
                 SearchResult? searchData = null;
+                bool SearchDataNoResults = true;
                 MemoryAnswer? answer = null;
+                MemoryAnswer? userIndexAnswers = null;
+
+                //clean up current user ID
+                string theUserId = currentUser.Id.Replace(" ", "");
+
                 if (urls.Count>0)
                 {
                     await ProcessURLsWithKernelMemory(urls);
@@ -536,17 +549,49 @@ else
                     //Remove urls from messageToProcess string.
                     string messageToProcessNoURLS = await GenerateNewPromptForMessagesWithUrl(messageToProcess);
 
-                    //See if we can get a direct answer, if not then search for relevant information
-                    answer = await kernelMemory!.AskAsync(messageToProcessNoURLS, currentSession.Id);
+                    //See if we can get a direct answer from session index
+                    answer = await kernelMemory!.AskAsync(messageToProcessNoURLS, currentSession.Id, minRelevance:minRelevance);
+
+                    //See if we can get a direct answer from user index
+                    userIndexAnswers = await kernelMemory!.AskAsync(messageToProcess, theUserId, minRelevance: minRelevance);
+
+                    //combine answer and userIndexAnswers and put it into Answers
+                    answer.NoResult = answer.NoResult && userIndexAnswers.NoResult;    
+                    answer.Result =  (answer.NoResult?string.Empty:answer.Result) + " " + (userIndexAnswers.NoResult?string.Empty:userIndexAnswers.Result);
+                    answer.RelevantSources.AddRange(userIndexAnswers.RelevantSources);
+
                     if (answer.NoResult)
-                        searchData = await kernelMemory!.SearchAsync(messageToProcessNoURLS, currentSession.Id);
+                    {
+                        searchData = await kernelMemory!.SearchAsync(messageToProcessNoURLS, currentSession.Id,limit: searchLimit);
+                        var searchDataUserIndex = await kernelMemory!.SearchAsync(messageToProcess, theUserId, limit: searchLimit);
+
+                        //combine searchData and searchDataUserIndex and put it into Results
+                        SearchDataNoResults = searchData.NoResult && searchDataUserIndex.NoResult;
+                        searchData.Results.AddRange(searchDataUserIndex.Results);
+                    }
                 }
                 else
                 {
                     //See if we can get a direct answer, if not then search for relevant information
-                    answer = await kernelMemory!.AskAsync(messageToProcess, currentSession.Id);
+                    answer = await kernelMemory!.AskAsync(messageToProcess, currentSession.Id, minRelevance:minRelevance);
+
+                    //See if we can get a direct answer from user index
+                    userIndexAnswers = await kernelMemory!.AskAsync(messageToProcess, theUserId, minRelevance: minRelevance);
+
+                    // //combine answer and userIndexAnswers and put it into Answers
+                    answer.NoResult = answer.NoResult && userIndexAnswers.NoResult;
+                    answer.Result = (answer.NoResult ? string.Empty : answer.Result) + " " + (userIndexAnswers.NoResult ? string.Empty : userIndexAnswers.Result);
+                    answer.RelevantSources.AddRange(userIndexAnswers.RelevantSources);
+                    
                     if (answer.NoResult)
-                        searchData = await kernelMemory!.SearchAsync(messageToProcess, currentSession.Id);
+                    {
+                        searchData = await kernelMemory!.SearchAsync(messageToProcess, currentSession.Id, limit: searchLimit);
+                        var searchDataUserIndex = await kernelMemory!.SearchAsync(messageToProcess, theUserId, limit: searchLimit);
+
+                        //combine searchData and searchDataUserIndex and put it into Results
+                        SearchDataNoResults = searchData.NoResult && searchDataUserIndex.NoResult;
+                        searchData.Results.AddRange(searchDataUserIndex.Results);
+                    }
                 }
 
                 if (!answer.NoResult)
@@ -556,7 +601,7 @@ else
                     history.AddUserMessage("----------------------------------");
 
                     if (answer.RelevantSources.Count>0)
-                        foreach (var source in answer.RelevantSources)
+                        foreach (var source in answer.RelevantSources.Take(5)) //only show the first 5 relevant sources
                         {
                             if (source.SourceName.ToLower()!="content.url")
                                 message.Citations.Add($"{source.SourceName} ({(source.Partitions.Max(x=>x.Relevance)*100).ToString("F2")}%)");
@@ -565,12 +610,12 @@ else
                         }
                 }
 
-                if (searchData!=null && !searchData.NoResult)
+                if (searchData != null && !SearchDataNoResults)
                 {
                     if (searchData.Results.Count>0)
                     {
                         history.AddUserMessage("No matter what the question or request, base the response only on the information below.");
-                        foreach (var result in searchData.Results)
+                        foreach (var result in searchData.Results.Take(5)) //take first 5 results onlly for display.
                         {
                             foreach (var p in result.Partitions)
                             {
@@ -810,39 +855,41 @@ else
     {
         if (kernelMemory != null)
         {
-            //Let's see if the document already is in the session, If so give a notification and then return.
-            var doc = dbContext.SessionDocuments.FirstOrDefault(d => d.FileNameOrUrl == filename && d.SessionId == currentSession.SessionId);
-            if (doc != null)
+            using (var dbContext = dbContextFactory.CreateDbContext())
             {
-                ShowAlert("The document you uploaded is already in the chat session.", AlertTypeEnum.warning);
-                return;
+                //Let's see if the document already is in the session, If so give a notification and then return.
+                var doc = dbContext.SessionDocuments.FirstOrDefault(d => d.FileNameOrUrl == filename && d.SessionId == currentSession.SessionId);
+                if (doc != null)
+                {
+                    ShowAlert("The document you uploaded is already in the chat session.", AlertTypeEnum.warning);
+                    return;
+                }
+
+                //Prep variables for processing
+                var docId = Guid.NewGuid().ToString();
+                string index = currentSession.SessionId;
+                TagCollection tags = new TagCollection();
+                tags.Add("user", currentUser.Id);
+                memoryStream.Position = 0;
+
+                await kernelMemory.ImportDocumentAsync(memoryStream, filename, docId, tags, index);
+
+                //Add record to database about document
+                dbContext.SessionDocuments.Add(new SessionDocument() { DocId = docId, FileNameOrUrl = filename, SessionId = index });
+                dbContext.SaveChanges();
+
+                while (!await kernelMemory.IsDocumentReadyAsync(docId, index))
+                {
+                    Thread.Sleep(1000);
+                }
+
+                //Show the user that the document has been processed
+                Message message = new Message(currentSession.Id, $"data:doc;{filename}", "What would you like to know about that document?");
+                if (messagesInChat != null && currentSession != null)
+                    messagesInChat.Add(message);
+                //store the chat session history
+                await UpdateSessionAndMessage(currentSession?.Id ?? string.Empty, message);
             }
-
-            //Prep variables for processing
-            var docId = Guid.NewGuid().ToString();
-            string index = currentSession.SessionId;
-            TagCollection tags = new TagCollection();
-            tags.Add("user", currentUser.Id);
-            memoryStream.Position = 0;
-
-            await kernelMemory.ImportDocumentAsync(memoryStream, filename, docId, tags, index);
-
-            //Add record to database about document
-            dbContext.SessionDocuments.Add(new SessionDocument() { DocId = docId, FileNameOrUrl = filename, SessionId = index });
-            dbContext.SaveChanges();
-
-            while(!await kernelMemory.IsDocumentReadyAsync(docId,index))
-            {
-                Thread.Sleep(1000);
-            }
-
-            //Show the user that the document has been processed
-            Message message = new Message(currentSession.Id, $"data:doc;{filename}", "What would you like to know about that document?");
-            if (messagesInChat != null && currentSession != null)
-                messagesInChat.Add(message);
-            //store the chat session history
-            await UpdateSessionAndMessage(currentSession?.Id ?? string.Empty, message);
-
         }
     }
 
@@ -877,38 +924,41 @@ else
         //check to see if the user already has a request for access
         //if they do, then show a message that they already have a request
         //if they don't, then add a request to the database
-        var userDetails = dbContext.Users.FirstOrDefault(u => u.Id==currentUser.Id);
-        if (userDetails!=null)
+        using (var dbContext = dbContextFactory.CreateDbContext())
         {
-            ShowAlert("You have already requested access to this page.", AlertTypeEnum.warning);
-            return;
-        }
-        else
-        {
-
-            //if there are no admins already, then add the user as an admin and auto approve
-            if (!dbContext.Users.Any(u => u.Role == UserRoles.Admin))
+            var userDetails = dbContext.Users.FirstOrDefault(u => u.Id == currentUser.Id);
+            if (userDetails != null)
             {
-                dbContext.Users.Add(new User() { Id = currentUser.Id, Name = currentUser.Name, Role = UserRoles.Admin, DateRequested = DateTime.Now, DateApproved=DateTime.Now, ApprovedBy=string.Empty, Email=string.Empty });
-                dbContext.SaveChanges();
-                currentUser.Role = UserRoles.Admin;
-                ShowAlert("Your request for access has been approved and you are the first administrator.", AlertTypeEnum.success);
+                ShowAlert("You have already requested access to this page.", AlertTypeEnum.warning);
+                return;
             }
             else
             {
-                // The system already has an admin, so any requested user will be added as a user or guest depending on the
-                // AutomaticAccountApproval setting.
-                if (config.AutomaticAccountApproval)
+
+                //if there are no admins already, then add the user as an admin and auto approve
+                if (!dbContext.Users.Any(u => u.Role == UserRoles.Admin))
                 {
-                    dbContext.Users.Add(new User() { Id = currentUser.Id, Name = currentUser.Name, Role = UserRoles.User, DateRequested = DateTime.Now, DateApproved=DateTime.Now, ApprovedBy=string.Empty, Email=string.Empty  });
+                    dbContext.Users.Add(new User() { Id = currentUser.Id, Name = currentUser.Name, Role = UserRoles.Admin, DateRequested = DateTime.Now, DateApproved = DateTime.Now, ApprovedBy = string.Empty, Email = string.Empty });
                     dbContext.SaveChanges();
-                    ShowAlert("Your request for access has been submitted. You will have access once an admin approves the request.", AlertTypeEnum.success);
+                    currentUser.Role = UserRoles.Admin;
+                    ShowAlert("Your request for access has been approved and you are the first administrator.", AlertTypeEnum.success);
                 }
                 else
                 {
-                    dbContext.Users.Add(new User() { Id = currentUser.Id, Name = currentUser.Name, Role = UserRoles.Guest, DateRequested = DateTime.Now });
-                    dbContext.SaveChanges();
-                    ShowAlert("Your request for access has been submitted. You will have access once an admin approves the request.", AlertTypeEnum.success);
+                    // The system already has an admin, so any requested user will be added as a user or guest depending on the
+                    // AutomaticAccountApproval setting.
+                    if (config.AutomaticAccountApproval)
+                    {
+                        dbContext.Users.Add(new User() { Id = currentUser.Id, Name = currentUser.Name, Role = UserRoles.User, DateRequested = DateTime.Now, DateApproved = DateTime.Now, ApprovedBy = string.Empty, Email = string.Empty });
+                        dbContext.SaveChanges();
+                        ShowAlert("Your request for access has been submitted. You will have access once an admin approves the request.", AlertTypeEnum.success);
+                    }
+                    else
+                    {
+                        dbContext.Users.Add(new User() { Id = currentUser.Id, Name = currentUser.Name, Role = UserRoles.Guest, DateRequested = DateTime.Now });
+                        dbContext.SaveChanges();
+                        ShowAlert("Your request for access has been submitted. You will have access once an admin approves the request.", AlertTypeEnum.success);
+                    }
                 }
             }
         }
@@ -1082,23 +1132,26 @@ else
     {
         if (kernelMemory!=null)
         {
-            string index = currentSession.SessionId;
-            TagCollection tags = new TagCollection();
-            tags.Add("user", currentUser.Id);
-            foreach (var url in urls)
+            using (var dbContext = dbContextFactory.CreateDbContext())
             {
-                //check if the url is already in the session
-                var doc = dbContext.SessionDocuments.FirstOrDefault(d => d.FileNameOrUrl == url && d.SessionId == index);
-                if (doc== null)
+                string index = currentSession.SessionId;
+                TagCollection tags = new TagCollection();
+                tags.Add("user", currentUser.Id);
+                foreach (var url in urls)
                 {
-                    var docId = Guid.NewGuid().ToString();
-                    await kernelMemory.ImportWebPageAsync(url, docId, tags, index);
-                    while (!await kernelMemory.IsDocumentReadyAsync(docId, index))
+                    //check if the url is already in the session
+                    var doc = dbContext.SessionDocuments.FirstOrDefault(d => d.FileNameOrUrl == url && d.SessionId == index);
+                    if (doc == null)
                     {
-                        Thread.Sleep(500);
+                        var docId = Guid.NewGuid().ToString();
+                        await kernelMemory.ImportWebPageAsync(url, docId, tags, index);
+                        while (!await kernelMemory.IsDocumentReadyAsync(docId, index))
+                        {
+                            Thread.Sleep(500);
+                        }
+                        dbContext.SessionDocuments.Add(new SessionDocument() { DocId = docId, FileNameOrUrl = url, SessionId = index });
+                        dbContext.SaveChanges();
                     }
-                    dbContext.SessionDocuments.Add(new SessionDocument() { DocId = docId, FileNameOrUrl = url, SessionId = index });
-                    dbContext.SaveChanges();
                 }
             }
         }
@@ -1114,11 +1167,13 @@ else
                 await kernelMemory.DeleteIndexAsync(sessionIdToDelete);
 
             //Delete the documents from the database
-            var docs = dbContext.SessionDocuments.Where(d => d.SessionId == sessionIdToDelete);
-            dbContext.SessionDocuments.RemoveRange(docs);
-            dbContext.SaveChanges();
+            using (var dbContext = dbContextFactory.CreateDbContext())
+            {
+                var docs = dbContext.SessionDocuments.Where(d => d.SessionId == sessionIdToDelete);
+                dbContext.SessionDocuments.RemoveRange(docs);
+                dbContext.SaveChanges();
 
-
+            }
             sessionIdToDelete = string.Empty;
         }
     }

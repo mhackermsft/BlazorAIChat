@@ -2,9 +2,11 @@
 @rendermode InteractiveServer
 @inject NavigationManager NavigationManager
 @inject AuthenticationStateProvider AuthenticationStateProvider
-@inject AIChatDBContext dbContext
+@inject IDbContextFactory<AIChatDBContext> dbContextFactory
+@inject WebCrawlerService webCrawlerService
 @using BlazorAIChat.Components.Shared
 @using BlazorAIChat.Models
+@using BlazorAIChat.Services
 @using BlazorAIChat.Utils
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Authorization
@@ -20,17 +22,11 @@
 </div>
 <div class="row">
     <div class="col-md-6">
-        <label>Depth:</label>
-        <InputNumber class="form-control" @bind-Value="newDepth" ></InputNumber>
-    </div>
-</div>
-<div class="row">
-    <div class="col-md-6">
         <button type="button" class="btn btn-primary" @onclick="Crawl">Crawl</button>
     </div>
 </div>
 <br/>
-<h4>Crawled URLs</h4>
+<h4>Crawled URLs @if (webCrawlerService.IsCrawling) { <span>[finding new urls]</span> } </h4>
 <div class="row">
     <div class="col-md-12">
         <table class="table">
@@ -47,7 +43,7 @@
                     <td>@status.URL</td>
                     <td>@status.LastStatus</td>
                     <td>@status.LastUpdate</td>
-                    <td></td>
+                    <td><button class="btn btn-danger" @onclick="()=>DeleteUrl(status.Id)">Remove</button></td>
                 </tr>
             }
         </table>
@@ -56,7 +52,6 @@
 
 @code {
     private string newUrl = string.Empty;
-    private int newDepth = 2;
     List<CrawlerStatus> crawlerStatuses = new List<CrawlerStatus>();
     User? currentUser = null;
 
@@ -64,6 +59,12 @@
     {
         await LoadCurrentUser();
         await LoadCrawlData();
+
+        webCrawlerService.OnCrawlStateChanged += async (sender, e) =>
+        {
+            await LoadCrawlData();
+            await InvokeAsync(StateHasChanged);
+        };
     }
 
     private async Task LoadCurrentUser()
@@ -88,12 +89,36 @@
 
     private async Task LoadCrawlData()
     {
-        crawlerStatuses = await dbContext.CrawlerStatuses.Where(x=>x.UserId==currentUser.Id).ToListAsync();
+        using (var dbContext = dbContextFactory.CreateDbContext())
+        {
+            if (currentUser != null)
+                crawlerStatuses = await dbContext.CrawlerStatuses.Where(x => x.UserId == currentUser.Id).ToListAsync();
+        }
     }
 
-    private async Task Crawl()
+    private void Crawl()
     {
-        
+        if (currentUser!=null)
+            webCrawlerService.AddURLToQueue(newUrl, currentUser.Id);
+    }
+
+    private async Task DeleteUrl(Guid id)
+    {
+        using (var dbContext = dbContextFactory.CreateDbContext())
+        {
+            var status = await dbContext.CrawlerStatuses.FirstOrDefaultAsync(x => x.Id == id);
+            if (status != null)
+            {
+                //get any records where the parent Id is the status Id
+                var records = await dbContext.CrawlerStatuses.Where(x => x.ParentId == status.Id).ToListAsync();
+                dbContext.CrawlerStatuses.RemoveRange(records);
+
+                //remove the selected record
+                dbContext.CrawlerStatuses.Remove(status);
+                await dbContext.SaveChangesAsync();
+                await LoadCrawlData();
+            }
+        }
     }
 }
 

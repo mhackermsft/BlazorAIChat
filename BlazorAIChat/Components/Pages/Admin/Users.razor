@@ -6,7 +6,7 @@
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.EntityFrameworkCore
-@inject AIChatDBContext DbContext
+@inject IDbContextFactory<AIChatDBContext> dbContextFactory
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject NavigationManager NavigationManager
 
@@ -121,7 +121,10 @@
             Console.WriteLine($"Initialization error: {ex.Message}");
         }
 
-        users = await DbContext.Users.OrderBy(x => x.DateApproved).ThenBy(x => x.Name).ToListAsync();
+        using (var dbContext = dbContextFactory.CreateDbContext())
+        {
+            users = await dbContext.Users.OrderBy(x => x.DateApproved).ThenBy(x => x.Name).ToListAsync();
+        }
     }
 
     private void EditUser(User user)
@@ -140,17 +143,20 @@
     {
         if (!string.IsNullOrEmpty(selectedUser.Id) && currentUser != null)
         {
-            if (selectedUser.Role == UserRoles.Guest)
+            using (var dbContext = dbContextFactory.CreateDbContext())
             {
-                selectedUser.DateApproved = null;
-                selectedUser.ApprovedBy = null;
-            }
+                if (selectedUser.Role == UserRoles.Guest)
+                {
+                    selectedUser.DateApproved = null;
+                    selectedUser.ApprovedBy = null;
+                }
 
-            DbContext.Update(selectedUser);
-            await DbContext.SaveChangesAsync();
-            selectedUser = new User() { Id=string.Empty };
-            users = await DbContext.Users.ToListAsync();
-            StateHasChanged();
+                dbContext.Update(selectedUser);
+                await dbContext.SaveChangesAsync();
+                selectedUser = new User() { Id = string.Empty };
+                users = await dbContext.Users.ToListAsync();
+                StateHasChanged();
+            }
         }
     }
 
@@ -158,13 +164,16 @@
     {
         if (currentUser != null)
         {
-            user.DateApproved = DateTime.Now;
-            user.ApprovedBy = currentUser.Id;
-            user.Role = UserRoles.User;
-            DbContext.Update(user);
-            await DbContext.SaveChangesAsync();
-            users = await DbContext.Users.ToListAsync();
-            StateHasChanged();
+            using (var dbContext = dbContextFactory.CreateDbContext())
+            {
+                user.DateApproved = DateTime.Now;
+                user.ApprovedBy = currentUser.Id;
+                user.Role = UserRoles.User;
+                dbContext.Update(user);
+                await dbContext.SaveChangesAsync();
+                users = await dbContext.Users.ToListAsync();
+                StateHasChanged();
+            }
         }
     }
 

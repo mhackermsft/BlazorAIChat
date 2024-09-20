@@ -3,6 +3,7 @@ using System;
 using BlazorAIChat;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace BlazorAIChat.Migrations
 {
     [DbContext(typeof(AIChatDBContext))]
-    partial class AIChatDBContextModelSnapshot : ModelSnapshot
+    [Migration("20240920134515_updatedCrawlStatus")]
+    partial class updatedCrawlStatus
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "8.0.8");
@@ -46,8 +49,9 @@ namespace BlazorAIChat.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("INTEGER");
 
-                    b.Property<int>("LastStatus")
-                        .HasColumnType("INTEGER");
+                    b.Property<string>("LastStatus")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("LastUpdate")
                         .HasColumnType("TEXT");

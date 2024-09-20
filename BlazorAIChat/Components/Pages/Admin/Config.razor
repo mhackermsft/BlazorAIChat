@@ -1,7 +1,7 @@
 ﻿@page "/admin/config"
 @attribute [Authorize(Roles = nameof(UserRoles.Admin))]
 @rendermode InteractiveServer
-@inject AIChatDBContext DbContext
+@inject IDbContextFactory<AIChatDBContext> dbContextFactory
 @inject NavigationManager NavigationManager
 @using BlazorAIChat.Models
 @using Microsoft.AspNetCore.Authorization
@@ -49,23 +49,29 @@
 
     protected override async Task OnInitializedAsync()
     {
-        var result = await DbContext.Config.FirstOrDefaultAsync();
-        if (result != null)
-            config = result;
+        using (var dbContext = dbContextFactory.CreateDbContext())
+        {
+            var result = await dbContext.Config.FirstOrDefaultAsync();
+            if (result != null)
+                config = result;
+        }
     }
 
     private async void Save()
     {
-        if (config.Id == Guid.Empty)
+        using (var dbContext = dbContextFactory.CreateDbContext())
         {
-            config.Id = Guid.NewGuid();
-            await DbContext.Config.AddAsync(config);
+            if (config.Id == Guid.Empty)
+            {
+                config.Id = Guid.NewGuid();
+                await dbContext.Config.AddAsync(config);
+            }
+            else
+            {
+                dbContext.Config.Update(config);
+            }
+            await dbContext.SaveChangesAsync();
         }
-        else
-        {
-            DbContext.Config.Update(config);
-        }
-        await DbContext.SaveChangesAsync();
     }
 
     private void NavigateToAdmin()

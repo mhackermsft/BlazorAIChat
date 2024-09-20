@@ -9,7 +9,7 @@
 @attribute [Authorize]
 @inject NavigationManager NavigationManager
 @inject AuthenticationStateProvider AuthenticationStateProvider
-@inject AIChatDBContext dbContext
+@inject IDbContextFactory<AIChatDBContext> dbContextFactory
 
 @if (currentUser!=null)
 {
@@ -88,20 +88,23 @@
     {
         if (currentUser != null && !string.IsNullOrEmpty(currentUser.Id))
         {
-            var trackedEntity = dbContext.ChangeTracker.Entries<User>().FirstOrDefault(e => e.Entity.Id == currentUser.Id);
-            if (trackedEntity == null)
+            using (var dbContext = dbContextFactory.CreateDbContext())
             {
-                dbContext.Attach(currentUser);
-                dbContext.Entry(currentUser).State = EntityState.Modified;
-            }
-            else
-            {
-                dbContext.Entry(trackedEntity.Entity).CurrentValues.SetValues(currentUser);
-            }
+                var trackedEntity = dbContext.ChangeTracker.Entries<User>().FirstOrDefault(e => e.Entity.Id == currentUser.Id);
+                if (trackedEntity == null)
+                {
+                    dbContext.Attach(currentUser);
+                    dbContext.Entry(currentUser).State = EntityState.Modified;
+                }
+                else
+                {
+                    dbContext.Entry(trackedEntity.Entity).CurrentValues.SetValues(currentUser);
+                }
 
-            await dbContext.SaveChangesAsync();
-            ShowAlert("User profile updated successfully", AlertTypeEnum.success);
-            StateHasChanged();
+                await dbContext.SaveChangesAsync();
+                ShowAlert("User profile updated successfully", AlertTypeEnum.success);
+                StateHasChanged();
+            }
         }
     }
 

@@ -1,20 +1,137 @@
-﻿using HtmlAgilityPack;
+﻿using BlazorAIChat.Models;
+using HtmlAgilityPack;
+using Microsoft.Extensions.Options;
 
 namespace BlazorAIChat.Services
 {
-    public class WebcrawlerService
+
+    public enum WebCrawlerServiceStatusEnum
+    {
+        Idle,
+        Crawling
+    }
+
+    public enum CrawlerStatusEnum
+    {
+        Queued,
+        Crawling,
+        Embedding,
+        Completed
+    }
+
+    public class WebCrawlerService
     {
 
         private static readonly HttpClient client = new HttpClient();
         private HashSet<string> visitedUrls = new HashSet<string>();
+        private Queue<Dictionary<string,string>> newURLQueue = new Queue<Dictionary<string, string>>();
+        private readonly AIChatDBContext dbContext;
+        private bool isCrawling = false;
+        private System.Timers.Timer crawlerTimer = new(5000);
 
+        public int MaxCrawlDepth { get; set; } = 2;
+        public bool IsCrawling { get { return isCrawling; } }
 
-        public async Task<List<string>> CrawlAsync(string url, int depth)
+        public event EventHandler<WebCrawlerServiceStatusEnum>? OnCrawlStateChanged;
+
+        public WebCrawlerService(IOptions<AppSettings> settings)
+        {
+            dbContext = new AIChatDBContext(settings);
+            crawlerTimer.Elapsed += CrawlerTimer_Elapsed;
+            crawlerTimer.AutoReset = true;
+            crawlerTimer.Enabled = true;
+        }
+
+        private void CrawlerTimer_Elapsed(object? sender, System.Timers.ElapsedEventArgs e)
+        {
+            if (!isCrawling)
+            {
+                Dictionary<string, string>? nextURL = GetNextURLFromQueue();
+                if (nextURL != null)
+                {
+                    Task.Run(async () =>
+                    {
+                        isCrawling = true;
+                        OnCrawlStateChanged?.Invoke(this, WebCrawlerServiceStatusEnum.Crawling);
+
+                        //Add URL as a parent URL to the database.
+                        Guid? urlId = AddURLtoDatabase(nextURL["url"], nextURL["userId"], null);
+                        if (urlId == Guid.Empty)
+                        {
+                            //URL already exists in database for the user, so we just jump out.
+                            isCrawling = false;
+                            OnCrawlStateChanged?.Invoke(this, WebCrawlerServiceStatusEnum.Idle);
+                            return;
+                        }
+
+                        List<string> urls = await CrawlAsync(nextURL["url"], MaxCrawlDepth);
+                        foreach (string url in urls)
+                        {
+                            //Add child URLs to the database
+                            AddURLtoDatabase(url, nextURL["userId"], urlId);
+                        }
+
+                        isCrawling = false;
+                        OnCrawlStateChanged?.Invoke(this, WebCrawlerServiceStatusEnum.Idle);
+                    });
+                }
+            }
+        }
+
+        public void AddURLToQueue(string url, string userId)
         {
             //add / to end of url if it doesn't exist
             if (!url.EndsWith("/"))
                 url += "/";
 
+            Dictionary<string, string> newURL = new Dictionary<string, string>();
+            newURL.Add("url", url);
+            newURL.Add("userId", userId);
+            newURLQueue.Enqueue(newURL);
+        }
+
+        public void RemoveURLFromQueue(string url)
+        {
+            newURLQueue = new Queue<Dictionary<string, string>>(newURLQueue.Where(x => x["url"] != url));
+        }
+
+
+        public Guid? AddURLtoDatabase(string url, string userId, Guid? parentId)
+        {
+            //ensure that the URL is not already in the database for the user
+            if (dbContext.CrawlerStatuses.Any(x => x.URL == url && x.UserId==userId))
+            {
+                return Guid.Empty;
+            }
+
+            CrawlerStatus newStatus = new CrawlerStatus
+            {
+                Id = Guid.NewGuid(),
+                ParentId = parentId,
+                URL = url,
+                UserId = userId,
+                LastStatus = CrawlerStatusEnum.Queued,
+                LastUpdate = DateTime.Now,
+                IsActive = true
+            };
+            dbContext.CrawlerStatuses.Add(newStatus);
+            dbContext.SaveChanges();
+            return newStatus.Id;
+        }
+
+
+        private Dictionary<string, string>? GetNextURLFromQueue()
+        {
+            if (newURLQueue.Count > 0)
+            {
+                return newURLQueue.Dequeue();
+            }
+            return null;
+        }
+
+
+        private async Task<List<string>> CrawlAsync(string url, int depth)
+        {
             List<string> urls = new List<string>();
             await CrawlAsync(url, depth, urls);
             return urls;
