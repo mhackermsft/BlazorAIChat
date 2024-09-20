@@ -6,6 +6,7 @@ using System.Net.Http;
 using Amazon.Runtime;
 using Microsoft.KernelMemory.AI.OpenAI;
 using Amazon.Runtime.Internal.Endpoints.StandardLibrary;
+using System;
 
 namespace BlazorAIChat.Services
 {
@@ -31,6 +32,7 @@ namespace BlazorAIChat.Services
 
         public EventHandler<WebEmbeddingServiceStatusEnum>? OnEmbedServiceStateChanged;
         public EventHandler<CrawlerStatus>? OnURLStateChanged;
+        public EventHandler<string>? OnStatusUpdate;
 
         public WebEmbeddingService(IOptions<AppSettings> appSettings, IHttpClientFactory httpClientFactory)
         {
@@ -41,6 +43,7 @@ namespace BlazorAIChat.Services
             dbContext = new AIChatDBContext(appSettings);
 
             settings = appSettings.Value;
+            CrawlFrequencyHours = settings.Webcrawling.RecrawlIntervalHours;
 
             //setup HttpClient
             httpClient = httpClientFactory.CreateClient("retryHttpClient");
@@ -168,6 +171,7 @@ namespace BlazorAIChat.Services
                         tags.Add("user", url.UserId);
                         if (kernelMemory != null)
                         {
+                            OnStatusUpdate?.Invoke(this, $"Embedding in progress for: {url.URL}");
                             await kernelMemory.ImportWebPageAsync(url.URL, url.Id.ToString(), tags, theUserId);
                             //Update the status of the URL
                             url.LastStatus = CrawlerStatusEnum.Embedding;
@@ -190,6 +194,7 @@ namespace BlazorAIChat.Services
                     Status = WebEmbeddingServiceStatusEnum.Idle;
                     OnEmbedServiceStateChanged?.Invoke(this, Status);
                 }
+                OnStatusUpdate?.Invoke(this, $"");
             }
         }
     }

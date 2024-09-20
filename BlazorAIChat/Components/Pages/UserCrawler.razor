@@ -4,6 +4,7 @@
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject IDbContextFactory<AIChatDBContext> dbContextFactory
 @inject WebCrawlerService webCrawlerService
+@inject WebEmbeddingService webEmbeddingService
 @using BlazorAIChat.Components.Shared
 @using BlazorAIChat.Models
 @using BlazorAIChat.Services
@@ -12,48 +13,90 @@
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.EntityFrameworkCore
 
+<div style="margin:10px">
+    <h3>Web Content Crawler</h3>
+    <h5>Configure URLS to be crawled and indexed for use across all of your chat sessions.</h5>
+    <a href="/">Back to chat</a><br/>
+    <br/>
+    <div class="row">
+        <div class="col-md-6">
+            <label>Add URL:</label>
+            <InputText class="form-control" @bind-Value="newUrl" placeholder="https://"></InputText><br/>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-6">
+            <button type="button" class="btn btn-primary" @onclick="Crawl">Crawl</button>
+        </div>
+    </div>
+    <br />
 
-<h3>Web Content Crawler</h3>
-<div class="row">
-    <div class="col-md-6">
-        <label>URL:</label>
-        <InputText class="form-control" @bind-Value="newUrl" ></InputText>
-    </div>
-</div>
-<div class="row">
-    <div class="col-md-6">
-        <button type="button" class="btn btn-primary" @onclick="Crawl">Crawl</button>
-    </div>
-</div>
-<br/>
-<h4>Crawled URLs @if (webCrawlerService.IsCrawling) { <span>[finding new urls]</span> } </h4>
-<div class="row">
-    <div class="col-md-12">
-        <table class="table">
-            <tr>
-                <th>URL</th>
-                <th>Status</th>
-                <th>Last Update</th>
-                <th></th>
-            </tr>
+    <h6>@crawlStatus</h6>
+    <h6>@embedStatus</h6>
 
-            @foreach (var status in crawlerStatuses)
-            {
-                <tr>
-                    <td>@status.URL</td>
-                    <td>@status.LastStatus</td>
-                    <td>@status.LastUpdate</td>
-                    <td><button class="btn btn-danger" @onclick="()=>DeleteUrl(status.Id)">Remove</button></td>
-                </tr>
-            }
-        </table>
+    <h4>Crawled URLs</h4>
+    <div class="row">
+        <div class="col-md-12">
+            <div class="accordion" id="accordionURLS">
+                @foreach (var status in crawlerStatuses.Where(x => x.ParentId == null))
+                {
+                    <div class="accordion-item">
+                        <h2 class="accordion-header" id="heading-@status.Id">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-@status.Id" aria-expanded="false" aria-controls="collapse-@status.Id">
+                                @status.URL<br />
+                                Status: @status.LastStatus<br />
+                                Last Update: @status.LastUpdate<br />
+                                <button type="button" class="btn btn-danger" style="margin-left:20px" @onclick="()=>DeleteUrl(status.Id)">Delete</button>
+                            </button>
+                        </h2>
+                        <div id="collapse-@status.Id" class="accordion-collapse collapse" aria-labelledby="heading-@status.Id" data-bs-parent="#accordionURLS">
+                            <div class="accordion-body">
+                                <div class="row">
+                                    <div class="col-md-3">
+                                        URL
+                                    </div>
+                                    <div class="col-md-3">
+                                        STATUS
+                                    </div>
+                                    <div class="col-md-3">
+                                        LAST UPDATE
+                                    </div>
+                                    <div class="col-md-3">
+                                    </div>
+                                </div>
+                                @foreach (var statusItem in crawlerStatuses.Where(x => x.ParentId == status.Id))
+                                {
+                                    <div class="row">
+                                        <div class="col-md-3">
+                                            <a href="@statusItem.URL" target="_blank">@statusItem.URL</a>
+                                        </div>
+                                        <div class="col-md-3">
+                                            @statusItem.LastStatus
+                                        </div>
+                                        <div class="col-md-3">
+                                            @statusItem.LastUpdate
+                                        </div>
+                                        <div class="col-md-3 p-1">
+                                            <button type="button" class="btn btn-danger" @onclick="()=>DeleteUrl(statusItem.Id)">Delete</button>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
     </div>
 </div>
+
 
 @code {
     private string newUrl = string.Empty;
     List<CrawlerStatus> crawlerStatuses = new List<CrawlerStatus>();
     User? currentUser = null;
+    private string crawlStatus = string.Empty;
+    private string embedStatus = string.Empty;
 
     protected override async Task OnInitializedAsync()
     {
@@ -63,6 +106,24 @@
         webCrawlerService.OnCrawlStateChanged += async (sender, e) =>
         {
             await LoadCrawlData();
+            await InvokeAsync(StateHasChanged);
+        };
+
+        webCrawlerService.OnStatusUpdate += async (sender, e) =>
+        {
+            crawlStatus = e;
+            await InvokeAsync(StateHasChanged);
+        };
+
+        webEmbeddingService.OnURLStateChanged += async (sender, e) =>
+        {
+            await LoadCrawlData();
+            await InvokeAsync(StateHasChanged);
+        };
+
+        webEmbeddingService.OnStatusUpdate += async (sender, e) =>
+        {
+            embedStatus = e;
             await InvokeAsync(StateHasChanged);
         };
     }
@@ -92,7 +153,7 @@
         using (var dbContext = dbContextFactory.CreateDbContext())
         {
             if (currentUser != null)
-                crawlerStatuses = await dbContext.CrawlerStatuses.Where(x => x.UserId == currentUser.Id).ToListAsync();
+                crawlerStatuses = await dbContext.CrawlerStatuses.Where(x => x.UserId == currentUser.Id).OrderBy(x=>x.URL).ToListAsync();
         }
     }
 
@@ -100,6 +161,9 @@
     {
         if (currentUser!=null)
             webCrawlerService.AddURLToQueue(newUrl, currentUser.Id);
+
+        newUrl = string.Empty;
+        StateHasChanged();
     }
 
     private async Task DeleteUrl(Guid id)

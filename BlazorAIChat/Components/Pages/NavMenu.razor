@@ -14,7 +14,7 @@
             }
             else
             {
-                <span class="navbar-brand mb-0 h1">@User?.Name</span>
+                <a href="/UserCrawler" class="navbar-brand mb-0 h1 text-decoration-none text-light" style="cursor: pointer;">@User?.Name</a>
             }
 
             @if (User!=null && User.Role == UserRoles.Admin)

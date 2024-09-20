@@ -11,6 +11,7 @@
         public CosmosDbSettings CosmosDb { get; set; } = new CosmosDbSettings();
         public DocumentIntelligenceSettings DocumentIntelligence { get; set; } = new DocumentIntelligenceSettings();
         public AzureAISearchSettings AzureAISearch { get; set; } = new AzureAISearchSettings();
+        public WebcrawlingSettings Webcrawling { get; set; } = new WebcrawlingSettings();
 
         public bool UsesPostgreSQL => !string.IsNullOrEmpty(ConnectionStrings.PostgreSQL);
         public bool UsesCosmosDb => !string.IsNullOrEmpty(ConnectionStrings.CosmosDb);
@@ -57,5 +58,11 @@
     {
         public string Endpoint { get; set; } = string.Empty;
         public string ApiKey { get; set; } = string.Empty;
+    }
+
+    public class WebcrawlingSettings
+    {
+        public int Depth { get; set; } = 2;
+        public int RecrawlIntervalHours { get; set; } = 72;
     }
 }

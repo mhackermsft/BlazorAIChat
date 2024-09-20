@@ -33,6 +33,7 @@ namespace BlazorAIChat.Services
         public bool IsCrawling { get { return isCrawling; } }
 
         public event EventHandler<WebCrawlerServiceStatusEnum>? OnCrawlStateChanged;
+        public event EventHandler<string>? OnStatusUpdate;
 
         public WebCrawlerService(IOptions<AppSettings> settings)
         {
@@ -40,6 +41,8 @@ namespace BlazorAIChat.Services
             crawlerTimer.Elapsed += CrawlerTimer_Elapsed;
             crawlerTimer.AutoReset = true;
             crawlerTimer.Enabled = true;
+
+            MaxCrawlDepth = settings.Value.Webcrawling.Depth;
         }
 
         private void CrawlerTimer_Elapsed(object? sender, System.Timers.ElapsedEventArgs e)
@@ -134,6 +137,7 @@ namespace BlazorAIChat.Services
         {
             List<string> urls = new List<string>();
             await CrawlAsync(url, depth, urls);
+            OnStatusUpdate?.Invoke(this, "");
             return urls;
         }
 
@@ -146,6 +150,7 @@ namespace BlazorAIChat.Services
 
             visitedUrls.Add(url);
             urls.Add(url);
+            OnStatusUpdate?.Invoke(this, $"Crawling {url}");
 
             string html = await GetHtmlAsync(url);
             if (html == null)
@@ -185,16 +190,25 @@ namespace BlazorAIChat.Services
             HtmlDocument document = new HtmlDocument();
             document.LoadHtml(html);
 
-            foreach (HtmlNode link in document.DocumentNode.SelectNodes("//a[@href]"))
+            if (document.DocumentNode == null)
             {
-                string href = link.GetAttributeValue("href", string.Empty);
-                if (Uri.TryCreate(new Uri(baseUrl), href, out Uri result))
+                return links;
+            }
+
+            var linkNodes = document.DocumentNode.SelectNodes("//a[@href]");
+            if (linkNodes != null)
+            {
+                foreach (HtmlNode link in linkNodes)
                 {
-                    if (result.Host == new Uri(baseUrl).Host)
+                    string href = link.GetAttributeValue("href", string.Empty);
+                    if (Uri.TryCreate(new Uri(baseUrl), href, out Uri? result))
                     {
-                        //Ensure that there isn't /# in the URL
-                        if (!result.AbsoluteUri.Contains("#"))
-                            links.Add(result.AbsoluteUri);
+                        if (result.Host == new Uri(baseUrl).Host)
+                        {
+                            // Ensure that there isn't /# in the URL
+                            if (!result.AbsoluteUri.Contains("#"))
+                                links.Add(result.AbsoluteUri);
+                        }
                     }
                 }
             }
