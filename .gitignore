@@ -373,3 +373,4 @@ FodyWeavers.xsd
 /BlazorAIChat/ConfigDatabase.db-shm
 /BlazorAIChat/ConfigDatabase.db-wal
 /BlazorAIChat/KNN/
+/BlazorAIChat/NuGet.config
