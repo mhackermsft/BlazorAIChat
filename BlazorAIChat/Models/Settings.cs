@@ -32,6 +32,8 @@
     {
         public string Model { get; set; } = string.Empty;
         public int MaxInputTokens { get; set; } = 8192;
+        public string Endpoint { get; set; } = string.Empty;
+        public string ApiKey { get; set; } = string.Empty;
     }
 
     public class ConnectionStringsSettings

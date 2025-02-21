@@ -52,7 +52,7 @@
 @code {
 
 
-    User? currentUser =null;
+    Models.User? currentUser =null;
     private string alertMessage { get; set; } = string.Empty;
     private string alertType { get; set; } = string.Empty;
 
@@ -88,7 +88,7 @@
     {
         if (currentUser != null && !string.IsNullOrEmpty(currentUser.Id))
         {
-            var trackedEntity = dbContext.ChangeTracker.Entries<User>().FirstOrDefault(e => e.Entity.Id == currentUser.Id);
+            var trackedEntity = dbContext.ChangeTracker.Entries<Models.User>().FirstOrDefault(e => e.Entity.Id == currentUser.Id);
             if (trackedEntity == null)
             {
                 dbContext.Attach(currentUser);

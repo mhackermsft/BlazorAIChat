@@ -15,6 +15,15 @@ namespace BlazorAIChat
             _appSettings = appSettings.Value;
         }
 
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<Session>()
+                .Property("Workarea")
+                .IsRequired(false);
+
+            base.OnModelCreating(modelBuilder);
+        }
+
         protected override void OnConfiguring(DbContextOptionsBuilder options)
         {
             // connect to SQLite database

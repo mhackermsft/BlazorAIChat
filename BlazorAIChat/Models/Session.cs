@@ -1,4 +1,6 @@
-﻿using System.Text.Json.Serialization;
+﻿using System.ComponentModel.DataAnnotations;
+using System.Diagnostics.CodeAnalysis;
+using System.Text.Json.Serialization;
 
 namespace BlazorAIChat.Models
 {
@@ -19,6 +21,8 @@ namespace BlazorAIChat.Models
         public string UserId { get; set; }
 
         public string Name { get; set; }
+        [MaxLength(50), AllowNull]
+        public string Workarea { get; set; }
 
         public DateTime SessionCreatedAt { get; set; }
 

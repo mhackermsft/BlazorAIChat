@@ -1,0 +1,284 @@
+
+{    
+    "Races": [
+        {
+            "Configuration Table Name": "Races",
+            "Code": "AI",
+            "Code Description": "American Indian or Alaska Native",
+            "Active Y/N": "Y"
+        },
+        {
+            "Configuration Table Name": "Races",
+            "Code": "A",
+            "Code Description": "Asian",
+            "Active Y/N": "Y"
+        },
+        {
+            "Configuration Table Name": "Races",
+            "Code": "B",
+            "Code Description": "Black or African American",
+            "Active Y/N": "Y"
+        },
+        {
+            "Configuration Table Name": "Races",
+            "Code": "HA",
+            "Code Description": "Native Hawaiian or Other Pacific Islander",
+            "Active Y/N": "Y"
+        },
+        {
+            "Configuration Table Name": "Races",
+            "Code": "W",
+            "Code Description": "White",
+            "Active Y/N": "Y"
+        },
+        {
+            "Configuration Table Name": "Races",
+            "Code": "TOMR",
+            "Code Description": "Two or More Races",
+            "Active Y/N": "Y"
+        }
+    ],
+    "Ethnicities": [
+        {
+            "Configuration Table Name": "Ethnicities",
+            "Code": "HL",
+            "Code Description": "Hispanic or Latino",
+            "Active Y/N": "Y"
+        },
+        {
+            "Configuration Table Name": "Ethnicities",
+            "Code": "NH",
+            "Code Description": "Not Hispanic or Latino",
+            "Active Y/N": "Y"
+        },
+        {
+            "Configuration Table Name": "Ethnicities",
+            "Code": "PNTS",
+            "Code Description": "Prefer Not to Say",
+            "Active Y/N": "Y"
+        }
+    ],
+    "Nationalities": [
+        {
+            "Configuration Table Name": "Nationalities",
+            "Code": "A",
+            "Code Description": "American",
+            "Active Y/N": "Y"
+        },
+        {
+            "Configuration Table Name": "Nationalities",
+            "Code": "BA",
+            "Code Description": "Bahamian",
+            "Active Y/N": "Y"
+        },
+        {
+            "Configuration Table Name": "Nationalities",
+            "Code": "C",
+            "Code Description": "Canadian",
+            "Active Y/N": "Y"
+        },
+        {
+            "Configuration Table Name": "Nationalities",
+            "Code": "CL",
+            "Code Description": "Chilean",
+            "Active Y/N": "Y"
+        },
+        {
+            "Configuration Table Name": "Nationalities",
+            "Code": "CU",
+            "Code Description": "Cuban",
+            "Active Y/N": "Y"
+        },
+        {
+            "Configuration Table Name": "Nationalities",
+            "Code": "M",
+            "Code Description": "Mexican",
+            "Active Y/N": "Y"
+        },
+        {
+            "Configuration Table Name": "Nationalities",
+            "Code": "CR",
+            "Code Description": "Costa Rican",
+            "Active Y/N": "Y"
+        },
+        {
+            "Configuration Table Name": "Nationalities",
+            "Code": "PR",
+            "Code Description": "Puerto Rican",
+            "Active Y/N": "Y"
+        }
+    ],
+    "Lead Source Categories": [
+        {
+            "Configuration Table Name": "Lead Source Categories",
+            "Code": "AI",
+            "Code Description": "Agency \u2013 International",
+            "Active Y/N": "N"
+        },
+        {
+            "Configuration Table Name": "Lead Source Categories",
+            "Code": "AD",
+            "Code Description": "Agency \u2013 Domestic",
+            "Active Y/N": "N"
+        },
+        {
+            "Configuration Table Name": "Lead Source Categories",
+            "Code": "CF",
+            "Code Description": "Career Fair",
+            "Active Y/N": "Y"
+        },
+        {
+            "Configuration Table Name": "Lead Source Categories",
+            "Code": "CV",
+            "Code Description": "College Visit",
+            "Active Y/N": "Y"
+        },
+        {
+            "Configuration Table Name": "Lead Source Categories",
+            "Code": "HS",
+            "Code Description": "High School Visit",
+            "Active Y/N": "Y"
+        },
+        {
+            "Configuration Table Name": "Lead Source Categories",
+            "Code": "PR",
+            "Code Description": "Partner Referral",
+            "Active Y/N": "Y"
+        },
+        {
+            "Configuration Table Name": "Lead Source Categories",
+            "Code": "PL",
+            "Code Description": "Purchased List",
+            "Active Y/N": "N"
+        },
+        {
+            "Configuration Table Name": "Lead Source Categories",
+            "Code": "SMF",
+            "Code Description": "Social Media \u2013 Free",
+            "Active Y/N": "Y"
+        },
+        {
+            "Configuration Table Name": "Lead Source Categories",
+            "Code": "SMP",
+            "Code Description": "Social Media \u2013 Paid",
+            "Active Y/N": "N"
+        },
+        {
+            "Configuration Table Name": "Lead Source Categories",
+            "Code": "WB",
+            "Code Description": "Web",
+            "Active Y/N": "Y"
+        },
+        {
+            "Configuration Table Name": "Lead Source Categories",
+            "Code": "FB",
+            "Code Description": "Faith-Based Outreach",
+            "Active Y/N": "Y"
+        },
+        {
+            "Configuration Table Name": "Lead Source Categories",
+            "Code": "ONL",
+            "Code Description": "Online",
+            "Active Y/N": "Y"
+        }
+    ],
+    "Lead Sources": [
+        {
+            "Configuration Table Name": "Lead Sources",
+            "Code": "FB",
+            "Code Description": "Facebook",
+            "Active Y/N": "Y",
+            "Lead Source Categories": "SMF"
+        },
+        {
+            "Configuration Table Name": "Lead Sources",
+            "Code": "IG",
+            "Code Description": "Instagram",
+            "Active Y/N": "Y",
+            "Lead Source Categories": "SMF"
+        },
+        {
+            "Configuration Table Name": "Lead Sources",
+            "Code": "LI",
+            "Code Description": "LinkedIN",
+            "Active Y/N": "Y",
+            "Lead Source Categories": "SMF"
+        },
+        {
+            "Configuration Table Name": "Lead Sources",
+            "Code": "YT",
+            "Code Description": "YouTube",
+            "Active Y/N": "Y",
+            "Lead Source Categories": "SMF"
+        },
+        {
+            "Configuration Table Name": "Lead Sources",
+            "Code": "CHS",
+            "Code Description": "Chamberlain High School",
+            "Active Y/N": "Y",
+            "Lead Source Categories": "High School Visit"
+        },
+        {
+            "Configuration Table Name": "Lead Sources",
+            "Code": "HPUMC",
+            "Code Description": "Hyde Park United Methodist Church",
+            "Active Y/N": "Y",
+            "Lead Source Categories": "Faith-Based Outreach"
+        },
+        {
+            "Configuration Table Name": "Lead Sources",
+            "Code": "FAFSA",
+            "Code Description": "FAFSA",
+            "Active Y/N": "Y",
+            "Lead Source Categories": "Online"
+        },
+        {
+            "Configuration Table Name": "Lead Sources",
+            "Code": "CW",
+            "Code Description": "College Website",
+            "Active Y/N": "Y",
+            "Lead Source Categories": "College Website"
+        },
+        {
+            "Configuration Table Name": "Lead Sources",
+            "Code": "RCS",
+            "Code Description": "Referral from Current Student",
+            "Active Y/N": "Y",
+            "Lead Source Categories": "Partner Referral"
+        },
+        {
+            "Configuration Table Name": "Lead Sources",
+            "Code": "RA",
+            "Code Description": "Referral from Alumni",
+            "Active Y/N": "Y",
+            "Lead Source Categories": "Partner Referral"
+        },
+        {
+            "Configuration Table Name": "Lead Sources",
+            "Code": "CE",
+            "Code Description": "Community Events",
+            "Active Y/N": "Y",
+            "Lead Source Categories": "Faith-Based Outreach"
+        }
+    ],
+    "Interests": [
+        {
+            "Configuration Table Name": "Interests",
+            "Code": "I",
+            "Code Description": "Intramural Sports",
+            "Active Y/N": "Y"
+        },
+        {
+            "Configuration Table Name": "Interests",
+            "Code": "G",
+            "Code Description": "Student Government",
+            "Active Y/N": "Y"
+        },
+        {
+            "Configuration Table Name": "Interests",
+            "Code": "V",
+            "Code Description": "Volunteering",
+            "Active Y/N": "Y"
+        }
+    ]
+}

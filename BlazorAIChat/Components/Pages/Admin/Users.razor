@@ -97,9 +97,9 @@
 }
 
 @code {
-    private List<User> users = new List<User>();
-    private User selectedUser = new User() { Id=string.Empty };
-    private User? currentUser;
+    private List<Models.User> users = new List<Models.User>();
+    private Models.User selectedUser = new Models.User() { Id = string.Empty };
+    private Models.User? currentUser;
 
     protected override async Task OnInitializedAsync()
     {
@@ -124,7 +124,7 @@
         users = await DbContext.Users.OrderBy(x => x.DateApproved).ThenBy(x => x.Name).ToListAsync();
     }
 
-    private void EditUser(User user)
+    private void EditUser(Models.User user)
     {
         selectedUser = user;
         StateHasChanged();
@@ -132,7 +132,7 @@
 
     private void CancelEdit()
     {
-        selectedUser = new User() {Id=string.Empty };
+        selectedUser = new Models.User() { Id = string.Empty };
         StateHasChanged();
     }
 
@@ -148,13 +148,13 @@
 
             DbContext.Update(selectedUser);
             await DbContext.SaveChangesAsync();
-            selectedUser = new User() { Id=string.Empty };
+            selectedUser = new Models.User() { Id = string.Empty };
             users = await DbContext.Users.ToListAsync();
             StateHasChanged();
         }
     }
 
-    private async void ApproveUser(User user)
+    private async void ApproveUser(Models.User user)
     {
         if (currentUser != null)
         {

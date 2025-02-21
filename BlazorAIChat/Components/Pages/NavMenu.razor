@@ -58,7 +58,7 @@
                                     </div>
                                     <div class="card-footer d-flex align-items-center justify-content-between">
                                         <span class="badge bg-light me-2 user-select-none">
-                                            
+
                                         </span>
                                         <div class="btn-group" role="group">
                                             <button type="button" class="btn btn-sm btn-link text-light" @onclick="@(e => OpenInput(session.SessionId,session.Name))">
@@ -82,9 +82,9 @@
 @if (_deletePopUpOpen)
 {
     <Confirmation Caption="Delete a Chat"
-        Message="@_popUpText"
-        OnClose="@OnConfirmationClose"
-        Type="Confirmation.Category.DeleteNot">
+    Message="@_popUpText"
+    OnClose="@OnConfirmationClose"
+    Type="Confirmation.Category.DeleteNot">
     </Confirmation>
 }
 
@@ -96,7 +96,7 @@
 
 @code {
     [Parameter]
-    public User? User { get; set; } = null;
+    public Models.User? User { get; set; } = null;
 
     [Parameter]
     public EventCallback<Session> OnChatClicked { get; set; }
@@ -126,7 +126,7 @@
         await SetMostRecentSession();
 
         _loadingComplete = true;
-        await LoadCurrentChatAsync();
+        await LoadCurrentChatAsync("");
 
     }
 
@@ -142,7 +142,7 @@
     }
 
     // Load the current chat session.
-    private async Task<int> LoadCurrentChatAsync()
+    private async Task<int> LoadCurrentChatAsync(string workarea)
     {
         int index = 0;
         if (currentSession is not null & _chatSessions is not null & _chatSessions?.Count > 0)
@@ -167,12 +167,27 @@
             }
         }
 
+        currentSession.Workarea = workarea;
         await OnChatClicked.InvokeAsync(currentSession);
 
         return 0;
     }
 
     // Create a new chat session.
+    private async Task NewChat(string workarea)
+    {
+        Session session = new();
+        session.UserId = User?.Id ?? string.Empty;
+        await chatHistoryService.InsertSessionAsync(session);
+        _chatSessions.Add(session);
+
+        currentSession = session;
+
+        UpdateNavMenuDisplay("Add");
+        await LoadChat(session.SessionId, workarea);
+        StateHasChanged();
+    }
+
     private async Task NewChat()
     {
         Session session = new();
@@ -199,14 +214,14 @@
     }
 
     // Load the chat session based on the session id.
-    async private Task<int> LoadChat(string _sessionId)
+    async private Task<int> LoadChat(string _sessionId, string workarea = "message")
     {
         if (_chatSessions is null) return 0;
 
         //get the session from _chatSessions
         currentSession = _chatSessions.Find(s => s.SessionId == _sessionId);
 
-        await LoadCurrentChatAsync();
+        await LoadCurrentChatAsync(workarea);
 
         return 0;
     }
@@ -243,7 +258,7 @@
             UpdateNavMenuDisplay("Delete");
 
             await SetMostRecentSession();
-            await LoadCurrentChatAsync();
+            await LoadCurrentChatAsync("");
         }
 
         _deletePopUpOpen = false;
@@ -294,7 +309,7 @@
             {
                 currentSession.Name = newName;
             }
-            await LoadCurrentChatAsync();
+            await LoadCurrentChatAsync("");
         }
 
         _renamePopUpOpen = false;

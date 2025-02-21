@@ -1,0 +1,6 @@
+Great choice! Working with Lead Sources is an important part of keeping track of how students find your school, and I'm here to help you through it!
+Let's dive into the Lead Sources configuration table. Here’s a quick overview of the current codes:
+
+| Code | Code Description | Active Y/N | Lead Source Categories | |------|----------------------------------------------|-------------|--------------------------------| | FB | Facebook | Y | SMF | | IG | Instagram | Y | SMF | | LI | LinkedIn | Y | SMF | | YT | YouTube | Y | SMF | | CHS | Chamberlain High School | Y | High School Visit | | HPUMC| Hyde Park United Methodist Church | Y | Faith-Based Outreach | | FAFSA| FAFSA | Y | Online | | CW | College Website | Y | College Website | | RCS | Referral from Current Student | Y | Partner Referral | | RA | Referral from Alumni | Y | Partner Referral | | CE | Community Events | Y | Faith-Based Outreach |
+
+All codes are currently active, which is fantastic! 🎉 Is there anything specific you'd like to add or modify in this table? If you don't want to make any changes, just let me know and we can mark this table complete!

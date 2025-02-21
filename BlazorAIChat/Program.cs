@@ -33,6 +33,7 @@ builder.Services.Configure<FormOptions>(options =>
 {
     options.MultipartBodyLengthLimit = int.MaxValue;
 });
+builder.Services.AddTelerikBlazor();
 
 var app = builder.Build();
 

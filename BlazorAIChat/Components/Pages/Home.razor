@@ -39,7 +39,7 @@
 @using System.Net.Http.Headers
 @using System.Security.Claims
 
-<PageTitle>Blazor Azure OpenAI Chat Demo</PageTitle>
+<PageTitle>Student First - OpenAI Configuration</PageTitle>
 <Alert AlertType="@alertType" AlertMessage="@alertMessage" OnClose="CloseAlert" />
 @if (showNeedsConfigure)
 {
@@ -88,52 +88,74 @@ else
     {
         <div class="h-100 d-flex flex-row justify-content-start">
             <div class="sidebar">
-                    <NavMenu @ref="@NavMenu" OnChatClicked="LoadChatEventHandlerAsync" User="@currentUser" OnDeleteUploadedDocs="DeleteUploadedDocs" />
+                <NavMenu @ref="@NavMenu" OnChatClicked="LoadChatEventHandlerAsync" User="@currentUser" OnDeleteUploadedDocs="DeleteUploadedDocs" />
             </div>
 
             <div class="flex-grow-1">
                 <div class="h-100 mh-100 d-flex flex-column overflow-hidden justify-content-start">
-                            <div class="w-100 navbar navbar-dark bg-primary d-flex flex-row px-4 justify-content-between flex-nowrap">
-                            <div class="d-flex flex-row justify-content-start">
-                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" height="30" fill="currentColor" class="text-light">
-                                    <path d="M415.98 265.82v-.27a17.24 17.24 0 1 0 .01.27ZM224.4 321.87a17.24 17.24 0 1 0 34.48 0 17.24 17.24 0 0 0-34.48 0Z" />
-                                    <path d="M397.92 209.51C395.91 95.77 266.41 51.59 182.48 96.66l-.12 145.45a5.39 5.39 0 0 0 5.39 5.39h41.76a18.85 18.85 0 0 1 18.86 18.86v25.6a29.36 29.36 0 1 1-36.1 28.56 29.1 29.1 0 0 1 22.9-28.56v-26.94a5.65 5.65 0 0 0-5.66-5.66h-41.76a18.59 18.59 0 0 1-18.59-18.59v-135.9c-21.08 14.76-38.2 36.03-47.96 64.23-163.09 22.89-139.5 256.6 22.91 252.74h14.81V305.98a5.39 5.39 0 0 0-5.39-5.39h-23.71a29.36 29.36 0 1 1 0-13.2h23.71a18.59 18.59 0 0 1 18.59 18.59v115.86h148.46V210.59a5.39 5.39 0 0 0-5.39-5.39h-28.83a29.36 29.36 0 1 1-28.56-36.1 29.1 29.1 0 0 1 28.56 22.9h27.75a18.59 18.59 0 0 1 18.59 18.59v94.84h53.89a5.66 5.66 0 0 0 5.66-5.66v-5.39a29.38 29.38 0 0 1 6.73-57.94l1.1-.02a29.37 29.37 0 0 1 29.35 29.39 29.36 29.36 0 0 1-22.9 28.56v5.39a18.85 18.85 0 0 1-18.86 18.86h-53.89v103.2h43.38c61.49 2.64 114.03-46.08 115.32-107.78-1.2-53.49-41.47-98-94.58-104.54Z" />
-                                    <circle cx="101" cy="293.85" r="17.24" />
-                                    <circle cx="257.81" cy="198.46" r="17.24" />
-                                    <path d="m182.49 96.66-.07.05.07-.04Z" />
-                                </svg>
-                                <span class="navbar-brand mb-0 ms-1 h1">Blazor Azure OpenAI Chat</span>
-                                @if (appSettings.Value.UsesAzureAISearch)
-                                {
-                                    <h6><span class="badge bg-success ms-2">Azure AI Search</span></h6>
-                                }
-                                else if (appSettings.Value.UsesPostgreSQL)
-                                {
-                                    <h6><span class="badge bg-success ms-2">PostgreSQL Memory Storage</span></h6>
-                                }
-                                else
-                                {
-                                    <h6><span class="badge bg-success ms-2">File Memory Storage</span></h6>
-                                }
+                    <div class="w-100 navbar navbar-dark bg-primary d-flex flex-row px-4 justify-content-between flex-nowrap">
+                        <div class="d-flex flex-row justify-content-start">
+                            <img width="30" src="images/Symbol.png" />
+                            <span class="navbar-brand mb-0 ms-1 h1">Student First Setup - Azure OpenAI Chat</span>
+                            @*  @if (appSettings.Value.UsesAzureAISearch)
+                            {
+                                <h6><span class="badge bg-success ms-2">Azure AI Search</span></h6>
+                            }
+                            else if (appSettings.Value.UsesPostgreSQL)
+                            {
+                                <h6><span class="badge bg-success ms-2">PostgreSQL Memory Storage</span></h6>
+                            }
+                            else
+                            {
+                                <h6><span class="badge bg-success ms-2">File Memory Storage</span></h6>
+                            }
 
-                                @if (appSettings.Value.UsesAzureDocIntelligence)
-                                {
-                                    <h6><span class="badge bg-success ms-2">Azure Doc Intelligence</span></h6>
-                                }
-                                @if (appSettings.Value.UsesCosmosDb)
-                                {
-                                    <h6><span class="badge bg-success ms-2">Cosmos DB Chat History</span></h6>
-                                }
-                                else
-                                {
-                                    <h6><span class="badge bg-success ms-2">SQLite Chat History</span></h6>
-                                }
+                            @if (appSettings.Value.UsesAzureDocIntelligence)
+                            {
+                                <h6><span class="badge bg-success ms-2">Azure Doc Intelligence</span></h6>
+                            }
+                            @if (appSettings.Value.UsesCosmosDb)
+                            {
+                                <h6><span class="badge bg-success ms-2">Cosmos DB Chat History</span></h6>
+                            }
+                            else
+                            {
+                                <h6><span class="badge bg-success ms-2">SQLite Chat History</span></h6>
+                            } *@
 
-                            </div>
                         </div>
+                    </div>
 
-                        <div class="px-4 pb-4 pt-2 flex-grow-1 overflow-y-auto overflow-x-hidden align-items-stretch" id="MessagesInChatdiv">
-                            @if (currentSession is null)
+                    <div class="px-4 pb-4 pt-2 flex-grow-1 overflow-y-auto overflow-x-hidden align-items-stretch" id="MessagesInChatdiv">
+                        @if (currentSession is null)
+                        {
+                            <div class="alert alert-primary">
+                                <div class="alert-heading">
+                                    <div class="spinner-border text-primary me-1" role="status">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                    Loading...
+                                </div>
+                                <p class="text-nowrap mb-0 fst-italic">
+                                    Please wait while your chat loads.
+                                </p>
+                            </div>
+                        }
+                        else if (currentSession.SessionId == Models.Constants.EMPTY_SESSION)
+                        {
+                            <div class="alert alert-warning">
+                                <h4 class="alert-heading">
+                                    <i class="bi bi-exclamation-triangle-fill me-1" aria-hidden="true"></i>
+                                    No Chats Available
+                                </h4>
+                                <p class="text-nowrap mb-0 fst-italic">
+                                    Use the Create New Chat option to start a new chat.
+                                </p>
+                            </div>
+                        }
+                        else
+                        {
+                            if (messagesInChat is null || loadingComplete == false)
                             {
                                 <div class="alert alert-primary">
                                     <div class="alert-heading">
@@ -147,53 +169,26 @@ else
                                     </p>
                                 </div>
                             }
-                            else if (currentSession.SessionId == Models.Constants.EMPTY_SESSION)
-                            {
-                                <div class="alert alert-warning">
-                                    <h4 class="alert-heading">
-                                        <i class="bi bi-exclamation-triangle-fill me-1" aria-hidden="true"></i>
-                                        No Chats Available
-                                    </h4>
-                                    <p class="text-nowrap mb-0 fst-italic">
-                                        Use the Create New Chat option to start a new chat.
-                                    </p>
-                                </div>
-                            }
                             else
                             {
-                                if (messagesInChat is null || loadingComplete == false)
+                                if (messagesInChat.Count == 0)
                                 {
-                                    <div class="alert alert-primary">
-                                        <div class="alert-heading">
-                                            <div class="spinner-border text-primary me-1" role="status">
-                                                <span class="visually-hidden">Loading...</span>
-                                            </div>
-                                            Loading...
-                                        </div>
-                                        <p class="text-nowrap mb-0 fst-italic">
-                                            Please wait while your chat loads.
+                                    <div class="alert alert-info">
+                                        <h4 class="alert-heading">
+                                            <i class="bi bi-lightbulb-fill me-1" aria-hidden="true"></i>
+                                            Get Started
+                                        </h4>
+                                        <p class="mb-0 fst-italic">
+                                            Start chatting with your AI assistant. You can upload images or documents, or provide URLs to ask questions about their content. Supported formats include Word, Excel, PowerPoint, Text, and PDF. Note that encrypted files and those with digital rights management are not supported.
                                         </p>
                                     </div>
                                 }
                                 else
                                 {
-                                    if (messagesInChat.Count == 0)
-                                    {
-                                        <div class="alert alert-info">
-                                            <h4 class="alert-heading">
-                                                <i class="bi bi-lightbulb-fill me-1" aria-hidden="true"></i>
-                                                Get Started
-                                            </h4>
-                                            <p class="mb-0 fst-italic">
-                                                Start chatting with your AI assistant. You can upload images or documents, or provide URLs to ask questions about their content. Supported formats include Word, Excel, PowerPoint, Text, and PDF. Note that encrypted files and those with digital rights management are not supported.
-                                            </p>
-                                        </div>
-                                    }
-                                    else
-                                    {
-                                        <div class="toast-container position-static w-100 d-flex flex-column align-items-stretch">
-                                            @foreach (var msg in messagesInChat)
-                                            {
+
+                                    <div class="toast-container position-static w-100 d-flex flex-column align-items-stretch">
+                                        @foreach (var msg in messagesInChat)
+                                        {
                                             <div class="toast fade show w-75 rounded-3 align-self-start">
                                                 <div class="toast-header bg-primary text-light">
                                                     <i class="bi bi-person me-1" aria-hidden="true"></i>
@@ -213,81 +208,90 @@ else
                                                     else
                                                         @(new MarkupString(msg.Prompt))
                                                 </div>
+                                            </div>
+                                            <div class="toast fade show w-75 rounded-3 align-self-end">
+                                                <div class="toast-header bg-success text-dark">
+                                                    <i class="bi bi-robot me-1" aria-hidden="true"></i>
+                                                    <strong class="me-auto text-capitalize">Assistant</strong>
                                                 </div>
-                                                <div class="toast fade show w-75 rounded-3 align-self-end">
-                                                    <div class="toast-header bg-success text-dark">
-                                                        <i class="bi bi-robot me-1" aria-hidden="true"></i>
-                                                        <strong class="me-auto text-capitalize">Assistant</strong>
-                                                    </div>
-                                                    <div class="toast-body">
-                                                        <i class="bi bi-grip-vertical mr-2 text-black-50"></i>
-                                                    
-                                                        @if(string.IsNullOrEmpty(msg.Completion.Trim()))
-                                                        {
-                                                            <div class="chat-bubble">
-                                                                <div class="typing">
-                                                                    <div class="dot"></div>
-                                                                    <div class="dot"></div>
-                                                                    <div class="dot"></div>
-                                                                </div>
-                                                            </div>
-                                                        }
-                                                        else
-                                                        {
-                                                            <span style="display: inline">
-                                                                @(new MarkupString(StripOuterParagraphTags(msg.Completion)))
-                                                            </span>
+                                                <div class="toast-body">
+                                                    <i class="bi bi-grip-vertical mr-2 text-black-50"></i>
 
-                                                            @if (msg.Citations.Count>0)
+                                                    @if(string.IsNullOrEmpty(msg.Completion.Trim()))
+                                                    {
+                                                        <div class="chat-bubble">
+                                                            <div class="typing">
+                                                                <div class="dot"></div>
+                                                                <div class="dot"></div>
+                                                                <div class="dot"></div>
+                                                            </div>
+                                                        </div>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span style="display: inline">
+                                                            @(new MarkupString(StripOuterParagraphTags(msg.Completion)))
+                                                        </span>
+
+                                                        @if (msg.Citations.Count>0)
+                                                        {
+                                                            <br/>
+
+                                                            @if (msg.Citations.Count>1)
                                                             {
-                                                                <br/>
-                                                       
-                                                                @if (msg.Citations.Count>1)
-                                                                {
-                                                                    <div class="badge bg-primary">Sources:</div>
-                                                                }
-                                                                else
-                                                                {
-                                                                    <div class="badge bg-primary">Source:</div>
-                                                                }
-                                                                     
-                                                                <ul>
+                                                                <div class="badge bg-primary">Sources:</div>
+                                                            }
+                                                            else
+                                                            {
+                                                                <div class="badge bg-primary">Source:</div>
+                                                            }
+
+                                                            <ul>
                                                                 @foreach (var citation in msg.Citations)
                                                                 {
                                                                     <li>@(new MarkupString(citation))</li>
                                                                 }
-                                                                </ul>                                                             
-                                                            }
+                                                            </ul>                                                             
                                                         }
-                                                    </div>
+                                                    }
+                                                    <Telerik.Blazor.Components.TelerikFloatingActionButton Title="Visualize Results"
+                                                        Icon="@SvgIcon.GridLayout"
+                                                        ThemeColor="@(Telerik.Blazor.ThemeConstants.Button.ThemeColor.Primary)"
+                                                        VerticalOffset="64px"
+                                                        HorizontalOffset="64px">
+
+                                                    </Telerik.Blazor.Components.TelerikFloatingActionButton>
                                                 </div>
-                                            }
-                                        </div>
-                                    }
+                                            </div>
+                                        }
+                                    </div>
                                 }
                             }
-                        </div>
-                        <div class="bg-primary text-light px-4 py-2 rounded-top-5 text-dark d-flex flex-column justify-content-center">
-                            @if (currentSession is not null && currentSession?.SessionId != Models.Constants.EMPTY_SESSION)
-                            {
-                                <div class="input-group">
-                                    <input type="text" class="form-control" placeholder="Enter your message" disabled="@isResponding" @bind-value="userMessage" @bind-value:event="oninput" @onkeydown="HandleKeyDown" />
-                                    <button class="btn btn-primary" @onclick="SendMessage">Send</button>
-                                    <InputFile @ref="inputFile" class="btn btn-warning" OnChange="HandleFileSelected" disabled="@(isFileInputDisabled||isResponding)" />
-                                    <button class="btn btn-secondary" @onclick="Stop">Stop</button>
-                                </div>                    
-                            }
-                        </div>
+                        }
+                    </div>
+                    <div class="bg-primary text-light px-4 py-2 rounded-top-5 text-dark d-flex flex-column justify-content-center">
+                        @if (currentSession is not null && currentSession?.SessionId != Models.Constants.EMPTY_SESSION)
+                        {
+                            <div class="input-group">
+                                <input type="text" class="form-control" placeholder="Enter your message" disabled="@isResponding" @bind-value="userMessage" @bind-value:event="oninput" @onkeydown="HandleKeyDown" />
+                                <button class="btn btn-primary" @onclick="SendMessage">Send</button>
+                                <InputFile @ref="inputFile" class="btn btn-warning" OnChange="HandleFileSelected" disabled="@(isFileInputDisabled||isResponding)" />
+                                <button class="btn btn-secondary" @onclick="Stop">Stop</button>
+                            </div>                    
+                        }
                     </div>
                 </div>
+            </div>
         </div>
-   
+
         <CustomModal IsVisible="isFileInputDisabled" Title="Document Processing" Message="Please wait, the document is uploading and processing. The amount of time this takes depends upon the size of the document." />
 
     }
 }
 
-@code {
+
+@code{
+
 
     //HTTP Client with retry policy
     private HttpClient? httpClient;
@@ -297,7 +301,7 @@ else
 
 #pragma warning disable SKEXP0010, SKEXP0001, SKEXP0020, KMEXP00
     //Config data from database
-    private Config config = new Config(){ Id=Guid.Empty};
+    private Config config = new Config() { Id = Guid.Empty };
 
     //User messages and session properties
     private string userMessage = string.Empty;
@@ -318,13 +322,13 @@ else
 
     //Flags for UI
     bool showNeedsConfigure = false;
-    bool isFileInputDisabled=false;
+    bool isFileInputDisabled = false;
     bool isResponding = false;
     bool stopResponding = false;
     private bool loadingComplete = false;
 
     //User properties
-    User currentUser = new User() { Id=string.Empty };
+    Models.User currentUser = new Models.User() { Id = string.Empty };
 
     //Alert message properties
     private string alertMessage { get; set; } = string.Empty;
@@ -337,7 +341,7 @@ else
 
     //Properties for image processing
     byte[]? uploadImageByteArray = null;
-    string uploadImageType= string.Empty;
+    string uploadImageType = string.Empty;
 
     //Application settings from appsettings.json or AppSerivce configuration
     AppSettings settings = new AppSettings();
@@ -345,6 +349,7 @@ else
     private readonly string _summarizePrompt = @"
         Summarize this text. One to three words maximum length.
         Plain text only. No punctuation, markup or tags.";
+
 
     // Initialization of the page
     protected override async Task OnInitializedAsync()
@@ -375,7 +380,7 @@ else
             settings = appSettings.Value;
 
             //Verify if the App Service needs configuration.
-            if (currentUser.Id=="Guest User" && settings.RequireEasyAuth)
+            if (currentUser.Id == "Guest User" && settings.RequireEasyAuth)
             {
                 showNeedsConfigure = true;
                 StateHasChanged();
@@ -385,11 +390,11 @@ else
             //Get app config data
             var dbConfig = dbContext.Config.FirstOrDefault();
             if (dbConfig != null)
-                config = dbConfig;       
+                config = dbConfig;
 
             // Create a kernel builder with Azure OpenAI chat completion. Both chat completion and embedding use the same OpenAI endpoint and key.
             builder = Kernel.CreateBuilder()
-            .AddAzureOpenAIChatCompletion(settings.AzureOpenAIChatCompletion.Model, settings.AzureOpenAIChatCompletion.Endpoint, settings.AzureOpenAIChatCompletion.ApiKey,httpClient: httpClient)
+            .AddAzureOpenAIChatCompletion(settings.AzureOpenAIChatCompletion.Model, settings.AzureOpenAIChatCompletion.Endpoint, settings.AzureOpenAIChatCompletion.ApiKey, httpClient: httpClient)
             .AddAzureOpenAITextEmbeddingGeneration(settings.AzureOpenAIEmbedding.Model, settings.AzureOpenAIChatCompletion.Endpoint, settings.AzureOpenAIChatCompletion.ApiKey, httpClient: httpClient);
 
             // Add enterprise components
@@ -430,12 +435,12 @@ else
             if (settings.UsesAzureAISearch)
             {
                 kernelMemoryBuilder = kernelMemoryBuilder.WithAzureAISearchMemoryDb(new AzureAISearchConfig()
-                {
-                    Endpoint = settings.AzureAISearch.Endpoint,
-                    APIKey = settings.AzureAISearch.ApiKey,
-                    Auth = AzureAISearchConfig.AuthTypes.APIKey,
-                    UseHybridSearch = false
-                });
+                    {
+                        Endpoint = settings.AzureAISearch.Endpoint,
+                        APIKey = settings.AzureAISearch.ApiKey,
+                        Auth = AzureAISearchConfig.AuthTypes.APIKey,
+                        UseHybridSearch = false
+                    });
 
             }
             else if (settings.UsesPostgreSQL)
@@ -460,7 +465,7 @@ else
                     {
                         Endpoint = settings.DocumentIntelligence.Endpoint,
                         APIKey = settings.DocumentIntelligence.ApiKey,
-                        Auth= AzureAIDocIntelConfig.AuthTypes.APIKey
+                        Auth = AzureAIDocIntelConfig.AuthTypes.APIKey
                     });
             }
 
@@ -500,14 +505,23 @@ else
     {
         try
         {
-            if (!string.IsNullOrWhiteSpace(userMessage) && chatCompletionService != null && currentSession!=null)
+            if (!string.IsNullOrWhiteSpace(userMessage) && chatCompletionService != null && currentSession != null)
             {
 
                 //The user previously requested to stop responding, so reset the flag so it can respond to the new message
                 stopResponding = false;
+                bool saving = false;
+                var saveItem = "";
+                var saveMessage = userMessage;
+                if (userMessage.StartsWith("save", StringComparison.InvariantCultureIgnoreCase))
+                {
+                    saving = true;
+                    saveItem = userMessage.Substring(4).Trim();
+                    saveMessage = $"list {saveItem} as JSON.";
+                }
 
                 //Create a new message object and add it to the mesaagesInChat list. This will allow the UI to display the message while the AI processes it.
-                Message message = new Message(currentSession.Id, userMessage);
+                Message message = new Message(currentSession.Id, saveMessage);
                 messagesInChat.Add(message);
 
                 //We do this to ensure that the user message is displayed in the chat window since looking up kernelMemory may take a moment. We
@@ -527,7 +541,7 @@ else
 
                 //If we have URLs, we need to add them to kernel memory
                 SearchResult? searchData = null;
-                if (urls.Count>0)
+                if (urls.Count > 0)
                 {
                     await ProcessURLsWithKernelMemory(urls);
 
@@ -540,9 +554,9 @@ else
                     searchData = await kernelMemory!.SearchAsync(messageToProcess, currentSession.Id);
                 }
 
-                if (searchData!=null && !searchData.NoResult)
+                if (searchData != null && !searchData.NoResult)
                 {
-                    if (searchData.Results.Count>0)
+                    if (searchData.Results.Count > 0)
                     {
                         history.AddUserMessage("No matter what the question or request, base the response only on the information below.");
                         foreach (var result in searchData.Results)
@@ -572,7 +586,7 @@ else
                 history = AIUtils.CleanUpHistory(history, textTokenizer, settings.AzureOpenAIChatCompletion.MaxInputTokens);
 
                 //Start the AI text generation process
-                await StreamChatCompletionAsync(history,message, chatCompletionService);
+                await StreamChatCompletionAsync(history, message, chatCompletionService, saving, saveItem);
             }
         }
         catch (Exception ex)
@@ -583,14 +597,17 @@ else
     }
 
     //Generates text from the AI and streams it to the chat window
-    public async Task StreamChatCompletionAsync(ChatHistory history, Message message, IChatCompletionService chatCompletionService)
+    public async Task StreamChatCompletionAsync(ChatHistory history, Message message, IChatCompletionService chatCompletionService, bool saving, string saveItem = "")
     {
         try
         {
             var markdownBuilder = new StringBuilder();
             var finalResults = new StringBuilder();
 
-
+            // if (saving)
+            // {
+            //     message.Completion = $"Saving {saveItem}...";
+            // }
             await foreach (var chatUpdate in chatCompletionService.GetStreamingChatMessageContentsAsync(history))
             {
                 //If the user has requested to stop responding, then break out of the loop
@@ -606,12 +623,26 @@ else
                     markdownBuilder.Append(chatUpdate.Content);
                     string partialHTML = md.Transform(markdownBuilder.ToString());
 
-                    message.Completion = FixupTextForCode(partialHTML.ToString());
+                    //if (!saving)
+                    {
+                        message.Completion = FixupTextForCode(partialHTML.ToString());
+                    }
                     // Scroll to the bottom of the chat window
                     await js.InvokeVoidAsync("scrollToBottom", "MessagesInChatdiv");
                     StateHasChanged();
                 }
             }
+
+            if (saving)
+            {
+                var textToSave = md.Transform(FixupTextForCode(finalResults.ToString()));
+                await StudentFirstApiTools.SaveResults(saveItem, textToSave);
+
+                // finalResults.Clear();
+                // finalResults.Append($"{saveItem} Saved!");
+            }
+
+
             message.Completion = md.Transform(FixupTextForCode(finalResults.ToString()));
             history.AddAssistantMessage(finalResults.ToString());
 
@@ -656,14 +687,14 @@ else
         {
             await UploadFile();
 
-            selectedFile= null;
+            selectedFile = null;
         }
         else
         {
             ShowAlert("The file you selected is empty or has no name.", AlertTypeEnum.warning);
         }
 
-        if (selectedFile!=null && selectedFile.Size>maxFileSizeBytes)
+        if (selectedFile != null && selectedFile.Size > maxFileSizeBytes)
         {
             ShowAlert("The file you selected is too large. Please select a file that is less than 1GB.", AlertTypeEnum.warning);
         }
@@ -755,7 +786,7 @@ else
             uploadImageByteArray = memoryStream.ToArray();
             string base64Image = ConvertByteImageToBase64Data(uploadImageByteArray, uploadImageType);
             Message message = new Message(currentSession.Id, $"{base64Image}", "What would you like to know about that image?");
-            if (messagesInChat!=null && currentSession!=null)
+            if (messagesInChat != null && currentSession != null)
                 messagesInChat.Add(message);
 
             //Add the image to the chat history so the AI can process it
@@ -789,7 +820,9 @@ else
             var doc = dbContext.SessionDocuments.FirstOrDefault(d => d.FileNameOrUrl == filename && d.SessionId == currentSession.SessionId);
             if (doc != null)
             {
-                ShowAlert("The document you uploaded is already in the chat session.", AlertTypeEnum.warning);
+                if (filename != "configuration_items.json")
+                    ShowAlert("The document you uploaded is already in the chat session.", AlertTypeEnum.warning);
+
                 return;
             }
 
@@ -806,7 +839,7 @@ else
             dbContext.SessionDocuments.Add(new SessionDocument() { DocId = docId, FileNameOrUrl = filename, SessionId = index });
             dbContext.SaveChanges();
 
-            while(!await kernelMemory.IsDocumentReadyAsync(docId,index))
+            while (!await kernelMemory.IsDocumentReadyAsync(docId, index))
             {
                 Thread.Sleep(1000);
             }
@@ -822,7 +855,7 @@ else
     }
 
     //Shows an alert at the top of the page
-    private void ShowAlert(string message, AlertTypeEnum alertType= AlertTypeEnum.info)
+    private void ShowAlert(string message, AlertTypeEnum alertType = AlertTypeEnum.info)
     {
 
         alertMessage += message + " ";
@@ -834,7 +867,7 @@ else
     private void CloseAlert()
     {
         alertMessage = string.Empty;
-        alertType=string.Empty;
+        alertType = string.Empty;
         StateHasChanged();
     }
 
@@ -852,8 +885,8 @@ else
         //check to see if the user already has a request for access
         //if they do, then show a message that they already have a request
         //if they don't, then add a request to the database
-        var userDetails = dbContext.Users.FirstOrDefault(u => u.Id==currentUser.Id);
-        if (userDetails!=null)
+        var userDetails = dbContext.Users.FirstOrDefault(u => u.Id == currentUser.Id);
+        if (userDetails != null)
         {
             ShowAlert("You have already requested access to this page.", AlertTypeEnum.warning);
             return;
@@ -864,7 +897,7 @@ else
             //if there are no admins already, then add the user as an admin and auto approve
             if (!dbContext.Users.Any(u => u.Role == UserRoles.Admin))
             {
-                dbContext.Users.Add(new User() { Id = currentUser.Id, Name = currentUser.Name, Role = UserRoles.Admin, DateRequested = DateTime.Now, DateApproved=DateTime.Now, ApprovedBy=string.Empty, Email=string.Empty });
+                dbContext.Users.Add(new Models.User() { Id = currentUser.Id, Name = currentUser.Name, Role = UserRoles.Admin, DateRequested = DateTime.Now, DateApproved = DateTime.Now, ApprovedBy = string.Empty, Email = string.Empty });
                 dbContext.SaveChanges();
                 currentUser.Role = UserRoles.Admin;
                 ShowAlert("Your request for access has been approved and you are the first administrator.", AlertTypeEnum.success);
@@ -875,13 +908,13 @@ else
                 // AutomaticAccountApproval setting.
                 if (config.AutomaticAccountApproval)
                 {
-                    dbContext.Users.Add(new User() { Id = currentUser.Id, Name = currentUser.Name, Role = UserRoles.User, DateRequested = DateTime.Now, DateApproved=DateTime.Now, ApprovedBy=string.Empty, Email=string.Empty  });
+                    dbContext.Users.Add(new Models.User() { Id = currentUser.Id, Name = currentUser.Name, Role = UserRoles.User, DateRequested = DateTime.Now, DateApproved = DateTime.Now, ApprovedBy = string.Empty, Email = string.Empty });
                     dbContext.SaveChanges();
                     ShowAlert("Your request for access has been submitted. You will have access once an admin approves the request.", AlertTypeEnum.success);
                 }
                 else
                 {
-                    dbContext.Users.Add(new User() { Id = currentUser.Id, Name = currentUser.Name, Role = UserRoles.Guest, DateRequested = DateTime.Now });
+                    dbContext.Users.Add(new Models.User() { Id = currentUser.Id, Name = currentUser.Name, Role = UserRoles.Guest, DateRequested = DateTime.Now });
                     dbContext.SaveChanges();
                     ShowAlert("Your request for access has been submitted. You will have access once an admin approves the request.", AlertTypeEnum.success);
                 }
@@ -913,11 +946,38 @@ else
         currentSession = session;
         StateHasChanged();
         await ReloadChatMessagesAsync();
+
+    }
+
+    private async Task<string> GetTableContents(string workarea)
+    {
+        var txt = System.IO.File.ReadAllText($"{workarea}.txt");
+        await Task.Delay(100);
+        // url = "https:sisstagingapi.studentfirst.app/systemconfiguration/ReferenceTypes/MaritalStatuses?activeOnly=false";
+
+        // var response = await httpClient.GetAsync(url);
+        // if (response.IsSuccessStatusCode)
+        // {
+        //     var content = await response.Content.ReadAsStringAsync();
+        //     return content;
+        // }
+        // else
+        // {
+        //     return "Error";
+        // }
+
+        return txt;
     }
 
     // Reloads the chat messages for the current session
     public async Task ReloadChatMessagesAsync()
     {
+        string txt = settings.SystemMessage;
+        txt = txt + "------------------------------------------------";
+        var message_txt = System.IO.File.ReadAllText("message.txt");
+        var maritalstatuses = await StudentFirstApiTools.GetMaritalStatuses();
+        txt = txt + message_txt + " " + maritalstatuses;
+
         if (currentSession is not null)
         {
             messagesInChat = await chatHistoryService.GetSessionMessagesAsync(currentSession.SessionId);
@@ -925,7 +985,8 @@ else
 
         //setup chat history object
         history = new ChatHistory();
-        history.AddSystemMessage(settings.SystemMessage);
+        history.AddSystemMessage(txt);
+
         if (messagesInChat != null && messagesInChat.Count > 0)
         {
             foreach (var msg in messagesInChat)
@@ -933,7 +994,7 @@ else
                 if (msg.Prompt.StartsWith("data:image"))
                 {
                     string mimeType = ExtractMimeType(msg.Prompt);
-                    history.AddUserMessage(new ChatMessageContentItemCollection() { new ImageContent() { Data = Convert.FromBase64String(msg.Prompt.Substring(mimeType.Length + 13)), MimeType=mimeType } });
+                    history.AddUserMessage(new ChatMessageContentItemCollection() { new ImageContent() { Data = Convert.FromBase64String(msg.Prompt.Substring(mimeType.Length + 13)), MimeType = mimeType } });
                 }
                 else if (msg.Prompt.StartsWith("data:doc"))
                 {
@@ -943,12 +1004,13 @@ else
                 {
                     history.AddUserMessage(msg.Prompt);
                 }
-                history.AddAssistantMessage(msg.Completion);             
+                history.AddAssistantMessage(msg.Completion);
             }
         }
 
-
         loadingComplete = true;
+
+
 
         StateHasChanged();
     }
@@ -972,12 +1034,12 @@ else
         skChatHistory.AddSystemMessage("Rewrite the user prompt to remove all URLs but still make the question or request understandable.");
         skChatHistory.AddUserMessage(theMessage);
         PromptExecutionSettings settings = new()
-        {
-            ExtensionData = new Dictionary<string, object>()
+            {
+                ExtensionData = new Dictionary<string, object>()
             {
                 { "Temperature", 0.8 }
             }
-        };
+            };
 
         var result = await kernel.GetRequiredService<IChatCompletionService>().GetChatMessageContentAsync(skChatHistory, settings);
         completionText = result.Items[0].ToString()!;
@@ -1002,14 +1064,14 @@ else
         skChatHistory.AddUserMessage(conversationText);
 
         PromptExecutionSettings settings = new()
-        {
+            {
                 ExtensionData = new Dictionary<string, object>()
             {
                 { "Temperature", 0.0 },
                 { "TopP", 1.0 },
                 { "MaxTokens", 100 }
             }
-        };
+            };
 
         var result = await kernel.GetRequiredService<IChatCompletionService>().GetChatMessageContentAsync(skChatHistory, settings);
         completionText = result.Items[0].ToString()!;
@@ -1055,7 +1117,7 @@ else
 
     private async Task ProcessURLsWithKernelMemory(List<string> urls)
     {
-        if (kernelMemory!=null)
+        if (kernelMemory != null)
         {
             string index = currentSession.SessionId;
             TagCollection tags = new TagCollection();
@@ -1064,7 +1126,7 @@ else
             {
                 //check if the url is already in the session
                 var doc = dbContext.SessionDocuments.FirstOrDefault(d => d.FileNameOrUrl == url && d.SessionId == index);
-                if (doc== null)
+                if (doc == null)
                 {
                     var docId = Guid.NewGuid().ToString();
                     await kernelMemory.ImportWebPageAsync(url, docId, tags, index);
@@ -1101,7 +1163,10 @@ else
     // Navigates to the user profile page
     private void GoToProfile()
     {
-        if (currentUser.Role!=UserRoles.Guest)
+        if (currentUser.Role != UserRoles.Guest)
             NavigationManager.NavigateTo("/userprofile");
     }
-}
+
+
+                                
+                                }
