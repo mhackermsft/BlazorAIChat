@@ -112,6 +112,19 @@ namespace BlazorAIChat.Services
         /// </summary>
         public async Task SetUserMcpParameterAsync(string userId, string inputId, string value)
         {
+            if (string.IsNullOrWhiteSpace(userId))
+                throw new ArgumentException("User ID cannot be null or empty", nameof(userId));
+            
+            if (string.IsNullOrWhiteSpace(inputId))
+                throw new ArgumentException("Input ID cannot be null or empty", nameof(inputId));
+            
+            if (string.IsNullOrEmpty(value))
+            {
+                // If value is empty, delete the parameter instead
+                await DeleteUserMcpParameterAsync(userId, inputId);
+                return;
+            }
+
             var encryptedValue = EncryptValue(value);
             
             var existingParameter = await _dbContext.UserMcpParameters
@@ -121,6 +134,7 @@ namespace BlazorAIChat.Services
             {
                 existingParameter.EncryptedValue = encryptedValue;
                 existingParameter.UpdatedAt = DateTime.UtcNow;
+                _logger.LogInformation("Updated MCP parameter {InputId} for user {UserId}", inputId, userId);
             }
             else
             {
@@ -130,6 +144,7 @@ namespace BlazorAIChat.Services
                     InputId = inputId,
                     EncryptedValue = encryptedValue
                 });
+                _logger.LogInformation("Created new MCP parameter {InputId} for user {UserId}", inputId, userId);
             }
 
             await _dbContext.SaveChangesAsync();
@@ -140,10 +155,21 @@ namespace BlazorAIChat.Services
         /// </summary>
         public async Task<string?> GetUserMcpParameterAsync(string userId, string inputId)
         {
-            var parameter = await _dbContext.UserMcpParameters
-                .FirstOrDefaultAsync(p => p.UserId == userId && p.InputId == inputId);
+            if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(inputId))
+                return null;
 
-            return parameter != null ? DecryptValue(parameter.EncryptedValue) : null;
+            try
+            {
+                var parameter = await _dbContext.UserMcpParameters
+                    .FirstOrDefaultAsync(p => p.UserId == userId && p.InputId == inputId);
+
+                return parameter != null ? DecryptValue(parameter.EncryptedValue) : null;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving MCP parameter {InputId} for user {UserId}", inputId, userId);
+                return null;
+            }
         }
 
         /// <summary>

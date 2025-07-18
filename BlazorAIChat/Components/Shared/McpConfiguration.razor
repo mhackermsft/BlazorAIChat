@@ -1,6 +1,7 @@
 @using BlazorAIChat.Models
 @using BlazorAIChat.Services
 @using Microsoft.AspNetCore.Components.Authorization
+@using System.Security.Claims
 @inject UserMcpService UserMcpService
 @inject AuthenticationStateProvider AuthenticationStateProvider
 
@@ -93,7 +94,8 @@
             
             if (userPrincipal.Identity?.IsAuthenticated == true)
             {
-                currentUserId = userPrincipal.FindFirst("sub")?.Value 
+                currentUserId = userPrincipal.FindFirst(ClaimTypes.NameIdentifier)?.Value 
+                              ?? userPrincipal.FindFirst("sub")?.Value 
                               ?? userPrincipal.FindFirst("oid")?.Value 
                               ?? userPrincipal.FindFirst("id")?.Value 
                               ?? userPrincipal.Identity.Name;
