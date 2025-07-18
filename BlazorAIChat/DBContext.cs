@@ -28,5 +28,7 @@ namespace BlazorAIChat
 
         public DbSet<Models.SessionDocument> SessionDocuments { get; set; }
         public DbSet<Models.Message> Messages { get; set; }
+        
+        public DbSet<Models.UserMcpParameter> UserMcpParameters { get; set; }
     }
 }

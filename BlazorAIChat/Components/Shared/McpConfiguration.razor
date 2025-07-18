@@ -1,0 +1,225 @@
+@using BlazorAIChat.Models
+@using BlazorAIChat.Services
+@using Microsoft.AspNetCore.Components.Authorization
+@inject UserMcpService UserMcpService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<div class="card mt-3">
+    <div class="card-header">
+        <h5>MCP Server Configuration</h5>
+    </div>
+    <div class="card-body">
+        @if (mcpInputs?.Any() == true)
+        {
+            <p class="card-text">Configure your personal parameters for MCP (Model Context Protocol) servers:</p>
+            
+            @foreach (var input in mcpInputs)
+            {
+                <div class="form-group mb-3">
+                    <label for="@input.Id" class="form-label">@input.Description:</label>
+                    @if (input.Password)
+                    {
+                        <input type="password" 
+                               id="@input.Id" 
+                               class="form-control" 
+                               placeholder="Enter @input.Description.ToLower()"
+                               @onchange="@((e) => OnParameterChanged(input.Id, e.Value?.ToString() ?? string.Empty))" />
+                    }
+                    else
+                    {
+                        <input type="text" 
+                               id="@input.Id" 
+                               class="form-control" 
+                               placeholder="Enter @input.Description.ToLower()"
+                               value="@GetParameterValueSync(input.Id)"
+                               @onchange="@((e) => OnParameterChanged(input.Id, e.Value?.ToString() ?? string.Empty))" />
+                    }
+                    <small class="form-text text-muted">
+                        Type: @input.Type
+                        @if (input.Password)
+                        {
+                            <span class="text-warning"> (encrypted)</span>
+                        }
+                    </small>
+                </div>
+            }
+            
+            <div class="mt-3">
+                <button type="button" class="btn btn-success" @onclick="SaveParameters" disabled="@isSaving">
+                    @if (isSaving)
+                    {
+                        <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                        <span> Saving...</span>
+                    }
+                    else
+                    {
+                        <span>Save MCP Configuration</span>
+                    }
+                </button>
+                <button type="button" class="btn btn-outline-secondary ms-2" @onclick="ClearAllParameters">
+                    Clear All
+                </button>
+            </div>
+            
+            @if (!string.IsNullOrEmpty(statusMessage))
+            {
+                <div class="alert @statusAlertClass mt-3" role="alert">
+                    @statusMessage
+                </div>
+            }
+        }
+        else
+        {
+            <p class="text-muted">No MCP server inputs are configured in the application settings.</p>
+        }
+    </div>
+</div>
+
+@code {
+    private List<McpInput>? mcpInputs;
+    private Dictionary<string, string> userParameters = new();
+    private bool isSaving = false;
+    private string statusMessage = string.Empty;
+    private string statusAlertClass = string.Empty;
+    private string? currentUserId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            // Get current user
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var userPrincipal = authState.User;
+            
+            if (userPrincipal.Identity?.IsAuthenticated == true)
+            {
+                currentUserId = userPrincipal.FindFirst("sub")?.Value 
+                              ?? userPrincipal.FindFirst("oid")?.Value 
+                              ?? userPrincipal.FindFirst("id")?.Value 
+                              ?? userPrincipal.Identity.Name;
+            }
+            
+            if (string.IsNullOrEmpty(currentUserId))
+            {
+                ShowStatus("Unable to identify current user", "alert-danger");
+                return;
+            }
+
+            // Load MCP inputs configuration
+            mcpInputs = UserMcpService.GetRequiredMcpInputs();
+            
+            // Load existing user parameters
+            if (mcpInputs?.Any() == true)
+            {
+                userParameters = await UserMcpService.GetUserMcpParametersAsync(currentUserId);
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowStatus($"Error loading MCP configuration: {ex.Message}", "alert-danger");
+        }
+    }
+
+    private async Task<string> GetParameterValue(string inputId)
+    {
+        return userParameters.TryGetValue(inputId, out var value) ? value : string.Empty;
+    }
+
+    private string GetParameterValueSync(string inputId)
+    {
+        return userParameters.TryGetValue(inputId, out var value) ? value : string.Empty;
+    }
+
+    private Task OnParameterChanged(string inputId, string value)
+    {
+        if (userParameters.ContainsKey(inputId))
+        {
+            userParameters[inputId] = value;
+        }
+        else
+        {
+            userParameters.Add(inputId, value);
+        }
+        return Task.CompletedTask;
+    }
+
+    private async Task SaveParameters()
+    {
+        if (string.IsNullOrEmpty(currentUserId))
+        {
+            ShowStatus("User not authenticated", "alert-danger");
+            return;
+        }
+
+        isSaving = true;
+        statusMessage = string.Empty;
+        
+        try
+        {
+            foreach (var kvp in userParameters)
+            {
+                if (!string.IsNullOrEmpty(kvp.Value))
+                {
+                    await UserMcpService.SetUserMcpParameterAsync(currentUserId, kvp.Key, kvp.Value);
+                }
+            }
+            
+            ShowStatus("MCP configuration saved successfully!", "alert-success");
+        }
+        catch (Exception ex)
+        {
+            ShowStatus($"Error saving configuration: {ex.Message}", "alert-danger");
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task ClearAllParameters()
+    {
+        if (string.IsNullOrEmpty(currentUserId))
+        {
+            ShowStatus("User not authenticated", "alert-danger");
+            return;
+        }
+
+        try
+        {
+            foreach (var input in mcpInputs ?? new List<McpInput>())
+            {
+                await UserMcpService.DeleteUserMcpParameterAsync(currentUserId, input.Id);
+                if (userParameters.ContainsKey(input.Id))
+                {
+                    userParameters[input.Id] = string.Empty;
+                }
+            }
+            
+            ShowStatus("All MCP parameters cleared", "alert-info");
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            ShowStatus($"Error clearing parameters: {ex.Message}", "alert-danger");
+        }
+    }
+
+    private void ShowStatus(string message, string alertClass)
+    {
+        statusMessage = message;
+        statusAlertClass = alertClass;
+        StateHasChanged();
+        
+        // Auto-hide success messages after 5 seconds
+        if (alertClass == "alert-success")
+        {
+            Task.Run(async () =>
+            {
+                await Task.Delay(5000);
+                statusMessage = string.Empty;
+                statusAlertClass = string.Empty;
+                await InvokeAsync(StateHasChanged);
+            });
+        }
+    }
+}

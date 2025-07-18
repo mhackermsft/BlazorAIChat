@@ -33,15 +33,15 @@ builder.Services.AddSingleton<ChatHistoryService>();
 builder.Services.AddScoped<AIService>();
 builder.Services.AddSingleton<AISearchService>();
 
-builder.Services.AddSingleton<McpPluginProvider>();
+builder.Services.AddScoped<UserMcpService>();
+builder.Services.AddScoped<McpPluginProvider>();
 
-// Register the Kernel using DI, injecting the plugin collection from the provider
-builder.Services.AddTransient<Kernel>(serviceProvider =>
+// Register the Kernel using DI - now scoped per request to support user-specific plugins
+builder.Services.AddScoped<Kernel>(serviceProvider =>
 {
     var appSettings = serviceProvider.GetRequiredService<IOptions<AppSettings>>().Value;
     var httpClientFactory = serviceProvider.GetRequiredService<IHttpClientFactory>();
     var httpClient = httpClientFactory.CreateClient("retryHttpClient");
-    var pluginProvider = serviceProvider.GetRequiredService<McpPluginProvider>();
 
     var kernelBuilder = Kernel.CreateBuilder()
         .AddAzureOpenAIChatCompletion(
@@ -55,11 +55,7 @@ builder.Services.AddTransient<Kernel>(serviceProvider =>
             appSettings.AzureOpenAIChatCompletion.ApiKey,
             httpClient: httpClient);
 
-    // Add each plugin individually using the correct method
-    foreach (var plugin in pluginProvider.Plugins)
-    {
-        kernelBuilder.Plugins.Add(plugin);
-    }
+    // Note: MCP plugins will be added dynamically per user in AIService
     kernelBuilder.Services.AddLogging(services => services.AddConsole().SetMinimumLevel(LogLevel.Trace));
     return kernelBuilder.Build();
 });
@@ -89,13 +85,6 @@ using (var scope = app.Services.CreateScope())
     var services = scope.ServiceProvider;
     var context = services.GetRequiredService<AIChatDBContext>();
     context.Database.Migrate();
-
-    // Initialize the plugin provider before the app runs
-    var appSettings = services.GetRequiredService<IOptions<AppSettings>>().Value;
-    var httpClientFactory = services.GetRequiredService<IHttpClientFactory>();
-    var logger = services.GetRequiredService<ILogger<Program>>();
-    var pluginProvider = services.GetRequiredService<McpPluginProvider>();
-    await pluginProvider.InitializeAsync(appSettings, httpClientFactory, logger);
 }
 
 // Configure the HTTP request pipeline.

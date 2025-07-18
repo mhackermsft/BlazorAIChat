@@ -95,4 +95,14 @@
         public string? Url { get; set; }
         public Dictionary<string, string>? Headers { get; set; }
     }
+
+    public class UserMcpParameter
+    {
+        public int Id { get; set; }
+        public required string UserId { get; set; }
+        public required string InputId { get; set; }
+        public required string EncryptedValue { get; set; }
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    }
 }

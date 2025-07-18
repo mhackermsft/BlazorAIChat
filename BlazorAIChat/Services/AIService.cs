@@ -37,6 +37,7 @@ namespace BlazorAIChat.Services
         private readonly ILogger<AIService> logger;
         private readonly Kernel kernel;
         private readonly AISearchService? azureAISearchService;
+        private readonly McpPluginProvider mcpPluginProvider;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="AIService"/> class.
@@ -46,13 +47,15 @@ namespace BlazorAIChat.Services
         /// <param name="httpClientFactory">The HTTP client factory.</param>
         /// <param name="dbContext">The database context.</param>
         /// <param name="kernel">The Semantic Kernel instance.</param>
-        public AIService(IOptions<AppSettings> appSettings, ChatHistoryService chatHistoryService, IHttpClientFactory httpClientFactory, AIChatDBContext dbContext, ILogger<AIService> logger, Kernel kernel, AISearchService aISearchService)
+        /// <param name="mcpPluginProvider">The MCP plugin provider for user-specific plugins.</param>
+        public AIService(IOptions<AppSettings> appSettings, ChatHistoryService chatHistoryService, IHttpClientFactory httpClientFactory, AIChatDBContext dbContext, ILogger<AIService> logger, Kernel kernel, AISearchService aISearchService, McpPluginProvider mcpPluginProvider)
         {
             this.dbContext = dbContext;
             this.chatHistoryService = chatHistoryService;
             this.logger = logger;
             this.kernel = kernel;
             this.azureAISearchService = aISearchService;
+            this.mcpPluginProvider = mcpPluginProvider;
             settings = appSettings.Value;
             httpClient = httpClientFactory.CreateClient("retryHttpClient");
             chatCompletionTokenizer = TokenizerFactory.GetTokenizerForModel(settings.AzureOpenAIChatCompletion.Tokenizer);
@@ -295,6 +298,16 @@ namespace BlazorAIChat.Services
 
             // Clean up the chat history to fit within the token limit
             history = await AIUtils.CleanUpHistoryAsync(history, chatCompletionService, 10, 5);
+
+            // Add user-specific MCP plugins to the kernel
+            var userMcpPlugins = await mcpPluginProvider.GetUserPluginsAsync(currentUser.Id);
+            foreach (var plugin in userMcpPlugins)
+            {
+                if (!kernel.Plugins.Contains(plugin))
+                {
+                    kernel.Plugins.Add(plugin);
+                }
+            }
 
             IAsyncEnumerable<StreamingChatMessageContent> streamingMessages;
 
